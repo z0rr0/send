@@ -1,0 +1,16 @@
+[server]
+host = "localhost" # http host
+port = 8082        # http port
+timeout = 30       # http timeout
+secure = false     # use https
+
+[storage]
+file = "db.sqlite" # database file
+dir = "storage"    # files storage
+
+[settings]
+ttl = 604800 # max time to live (seconds)
+times = 100  # max times for requests
+size = 16    # max file size
+salt = "abc" # custom app salt
+gc = 10      # 'garbage collector' timeout

@@ -15,15 +15,17 @@ import (
 
 // Item is base data struct for incoming data.
 type Item struct {
-	ID      int64
-	Name    string
-	Path    string
-	Text    string
-	Salt    string
-	Hash    string
-	Counter int
-	Created time.Time
-	Expired time.Time
+	ID       int64
+	Name     string
+	Path     string
+	Text     string
+	SaltName string
+	SaltFile string
+	SaltText string
+	Hash     string
+	Counter  int
+	Created  time.Time
+	Expired  time.Time
 }
 
 // FullPath returns a full path for item's file.
@@ -77,6 +79,30 @@ func (item *Item) Delete(db *sql.DB) error {
 	return deleteFiles(item)
 }
 
+// Save saves the item to database.
+func (item *Item) Save(db *sql.DB) error {
+	return InTransaction(db, func(tx *sql.Tx) error {
+		stmt, err := tx.Prepare("INSERT INTO `storage` " +
+			"(`name`, `path`, `text`, `hash`, `salt_name`, `salt_file`, `salt_text`, " +
+			"`counter`, `created`, `updated`, `expired`) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);")
+		if err != nil {
+			return fmt.Errorf("insert statement: %w", err)
+		}
+		result, err := tx.Stmt(stmt).Exec(item.Name, item.Path, item.Text,
+			item.Hash, item.SaltName, item.SaltFile, item.SaltText,
+			item.Counter, item.Created, item.Created, item.Expired)
+		if err != nil {
+			return fmt.Errorf("insert exec: %w", err)
+		}
+		item.ID, err = result.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("insert last id: %w", err)
+		}
+		return nil
+	})
+}
+
 // stringIDs returns comma-separated IDs of items.
 func stringIDs(items []*Item) string {
 	strIDs := make([]string, len(items))
@@ -96,4 +122,36 @@ func deleteFiles(items ...*Item) error {
 		}
 	}
 	return nil
+}
+
+// Read reads an item by its hash from database.
+func Read(db *sql.DB, hash string) (*Item, error) {
+	stmt, err := db.Prepare("SELECT `id`, `name`, `path`, `text`, " +
+		"`hash`, `salt_name`, `salt_file`, `salt_text`, `counter`, `created`, `expired` " +
+		"FROM `storage` WHERE `counter`>0 AND `hash`=?;")
+	if err != nil {
+		return nil, fmt.Errorf("read item: %w", err)
+	}
+	item := &Item{}
+	err = stmt.QueryRow(hash).Scan(
+		&item.ID,
+		&item.Name,
+		&item.Path,
+		&item.Text,
+		&item.Hash,
+		&item.SaltName,
+		&item.SaltFile,
+		&item.SaltText,
+		&item.Counter,
+		&item.Created,
+		&item.Expired,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("read scan item: %w", err)
+	}
+	err = stmt.Close()
+	if err != nil {
+		return nil, fmt.Errorf("read item, close statement: %w", err)
+	}
+	return item, nil
 }

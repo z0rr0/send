@@ -68,7 +68,7 @@ func (item *Item) IsFileExists() bool {
 // Delete removes items from database and related file from file system.
 func (item *Item) Delete(db *sql.DB) error {
 	var txErr = InTransaction(db, func(tx *sql.Tx) error {
-		_, err := deleteByIDs(tx, item)
+		_, err := delete(tx, item)
 		return err
 	})
 	if txErr != nil {

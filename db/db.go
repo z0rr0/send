@@ -36,7 +36,8 @@ func InTransaction(db *sql.DB, f func(tx *sql.Tx) error) error {
 	return nil
 }
 
-func expiredItems(tx *sql.Tx) ([]*Item, error) {
+// expired returns already expired items for now timestamp.
+func expired(tx *sql.Tx) ([]*Item, error) {
 	var items []*Item
 	stmt, err := tx.Prepare("SELECT `id`, `path`, `hash` FROM `storage` WHERE `expired`<?;")
 	if err != nil {
@@ -61,8 +62,8 @@ func expiredItems(tx *sql.Tx) ([]*Item, error) {
 	return items, nil
 }
 
-// deleteByIDs removes items by their identifiers.
-func deleteByIDs(tx *sql.Tx, items ...*Item) (int64, error) {
+// delete removes items by their identifiers.
+func delete(tx *sql.Tx, items ...*Item) (int64, error) {
 	// statement will be closed when the transaction has been committed or rolled back
 	stmt, err := tx.Prepare("DELETE FROM `storage` WHERE `id` IN (?);")
 	if err != nil {
@@ -79,11 +80,11 @@ func deleteByIDs(tx *sql.Tx, items ...*Item) (int64, error) {
 func deleteByDate(db *sql.DB) (int64, error) {
 	var n int64
 	var txErr = InTransaction(db, func(tx *sql.Tx) error {
-		items, err := expiredItems(tx)
+		items, err := expired(tx)
 		if err != nil {
 			return err
 		}
-		n, err = deleteByIDs(tx, items...)
+		n, err = delete(tx, items...)
 		if err != nil {
 			return err
 		}
@@ -103,13 +104,13 @@ func GCMonitor(ch <-chan Item, closed chan struct{}, db *sql.DB, period time.Dur
 		select {
 		case item := <-ch:
 			if err := item.Delete(db); err != nil {
-				logErr.Println(err)
+				logErr.Printf("failed delete item: %v\n", err)
 			} else {
 				logInfo.Printf("deleted item=%v\n", item.ID)
 			}
 		case <-tc:
 			if n, err := deleteByDate(db); err != nil {
-				logErr.Println(err)
+				logErr.Printf("failed delete items by date: %v\n", err)
 			} else {
 				if n > 0 {
 					logInfo.Printf("deleted %v expired items\n", n)

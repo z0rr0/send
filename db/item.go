@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -67,11 +68,32 @@ func (item *Item) IsFileExists() bool {
 // Delete removes items from database and related file from file system.
 func (item *Item) Delete(db *sql.DB) error {
 	var txErr = InTransaction(db, func(tx *sql.Tx) error {
-		_, err := deleteByIDs(tx, item.ID)
+		_, err := deleteByIDs(tx, item)
 		return err
 	})
 	if txErr != nil {
 		return fmt.Errorf("failed delete item by id: %w", txErr)
 	}
-	return os.Remove(item.FullPath())
+	return deleteFiles(item)
+}
+
+// stringIDs returns comma-separated IDs of items.
+func stringIDs(items []*Item) string {
+	strIDs := make([]string, len(items))
+	for i, item := range items {
+		strIDs[i] = strconv.FormatInt(item.ID, 10)
+	}
+	return strings.Join(strIDs, ",")
+}
+
+// deleteFiles removes files of items.
+func deleteFiles(items ...*Item) error {
+	var err error
+	for _, item := range items {
+		err = os.RemoveAll(item.FullPath())
+		if err != nil {
+			return fmt.Errorf("delete file of item=%d: %w", item.ID, err)
+		}
+	}
+	return nil
 }

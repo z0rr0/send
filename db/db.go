@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -38,22 +36,39 @@ func InTransaction(db *sql.DB, f func(tx *sql.Tx) error) error {
 	return nil
 }
 
+func expiredItems(tx *sql.Tx) ([]*Item, error) {
+	var items []*Item
+	stmt, err := tx.Prepare("SELECT `id`, `path`, `hash` FROM `storage` WHERE `expired`<?;")
+	if err != nil {
+		return nil, fmt.Errorf("prepare select expired query: %w", err)
+	}
+	rows, err := tx.Stmt(stmt).Query(time.Now().UTC())
+	if err != nil {
+		return nil, fmt.Errorf("exec select expired query: %w", err)
+	}
+	for rows.Next() {
+		item := &Item{}
+		err = rows.Scan(&item.ID, &item.Path, &item.Hash)
+		if err != nil {
+			return nil, fmt.Errorf("next select expired query: %w", err)
+		}
+		items = append(items, item)
+	}
+	err = rows.Close()
+	if err != nil {
+		return nil, fmt.Errorf("close rows expired query: %w", err)
+	}
+	return items, nil
+}
+
 // deleteByIDs removes items by their identifiers.
-func deleteByIDs(tx *sql.Tx, ids ...int64) (int64, error) {
+func deleteByIDs(tx *sql.Tx, items ...*Item) (int64, error) {
+	// statement will be closed when the transaction has been committed or rolled back
 	stmt, err := tx.Prepare("DELETE FROM `storage` WHERE `id` IN (?);")
 	if err != nil {
 		return 0, fmt.Errorf("can not prepare delete transaction: %w", err)
 	}
-	defer func() {
-		if err := stmt.Close(); err != nil {
-			logErr.Printf("failed close stmt: %v\n", err)
-		}
-	}()
-	strIDs := make([]string, len(ids))
-	for i, v := range ids {
-		strIDs[i] = strconv.FormatInt(v, 10)
-	}
-	result, err := stmt.Exec(strings.Join(strIDs, ","))
+	result, err := tx.Stmt(stmt).Exec(stringIDs(items))
 	if err != nil {
 		return 0, fmt.Errorf("can not exec delete transaction: %w", err)
 	}
@@ -62,7 +77,22 @@ func deleteByIDs(tx *sql.Tx, ids ...int64) (int64, error) {
 
 // deleteByDate removes expired items.
 func deleteByDate(db *sql.DB) (int64, error) {
-	return 0, nil
+	var n int64
+	var txErr = InTransaction(db, func(tx *sql.Tx) error {
+		items, err := expiredItems(tx)
+		if err != nil {
+			return err
+		}
+		n, err = deleteByIDs(tx, items...)
+		if err != nil {
+			return err
+		}
+		return deleteFiles(items...)
+	})
+	if txErr != nil {
+		return 0, fmt.Errorf("failed delete item by date: %w", txErr)
+	}
+	return n, nil
 }
 
 // GCMonitor is garbage collection monitoring to delete expired by date or counter items.

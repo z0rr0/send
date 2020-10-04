@@ -25,6 +25,7 @@ const (
 	hashLength = 32
 )
 
+// Salt returns random salt.
 func Salt() ([]byte, error) {
 	salt := make([]byte, saltSize)
 	_, err := rand.Read(salt)

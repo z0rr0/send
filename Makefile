@@ -6,7 +6,7 @@ VERSION=$(firstword $(COMMIT))
 FLAG=-X main.Version=$(TAG) -X main.Revision=git:$(VERSION) -X main.BuildDate=$(TS)
 PIDFILE=/tmp/.$(TARGET).pid
 PWD=$(shell pwd)
-CONFIG=config.json
+CONFIG=config.toml
 
 all: test
 

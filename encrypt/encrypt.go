@@ -3,6 +3,7 @@ package encrypt
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -12,6 +13,8 @@ import (
 
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/sha3"
+
+	"github.com/z0rr0/send/encrypt/text"
 )
 
 const (
@@ -24,6 +27,34 @@ const (
 	// hashLength is length of file hash.
 	hashLength = 32
 )
+
+type Msg struct {
+	Salt     string
+	Value    string
+	Hash     string
+	byteSalt []byte
+	byteHash []byte
+}
+
+func (m *Msg) Encode() {
+	m.Salt = hex.EncodeToString(m.byteSalt)
+	m.Hash = hex.EncodeToString(m.byteHash)
+}
+
+func (m *Msg) Decode() error {
+	b, err := hex.DecodeString(m.Salt)
+	if err != nil {
+		return fmt.Errorf("hex decode salt: %w", err)
+	}
+	m.byteSalt = b
+
+	b, err = hex.DecodeString(m.Hash)
+	if err != nil {
+		return fmt.Errorf("hex decode hash: %w", err)
+	}
+	m.byteHash = b
+	return nil
+}
 
 // Salt returns random salt.
 func Salt() ([]byte, error) {
@@ -43,47 +74,32 @@ func Key(secret string, salt []byte) ([]byte, []byte) {
 	return key, b
 }
 
-// Text encrypts text using AES cipher by a key.
-func Text(text string, key []byte) (string, error) {
-	if text == "" {
-		return "", errors.New("encrypt empty text")
-	}
-	block, err := aes.NewCipher(key)
+func Text(secret, plainText string) (*Msg, error) {
+	salt, err := Salt()
 	if err != nil {
-		return "", fmt.Errorf("new encrypt cipher: %w", err)
+		return nil, err
 	}
-	plainText := []byte(text)
-	cipherText := make([]byte, aes.BlockSize+len(plainText))
-	iv := cipherText[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return "", fmt.Errorf("iv random generation: %w", err)
+	key, h := Key(secret, salt)
+	cipherText, err := text.Encrypt(plainText, key)
+	if err != nil {
+		return nil, err
 	}
-	stream := cipher.NewCFBEncrypter(block, iv)
-	stream.XORKeyStream(cipherText[aes.BlockSize:], plainText)
-	return hex.EncodeToString(cipherText), nil
+	m := &Msg{Value: cipherText, byteSalt: salt, byteHash: h}
+	m.Encode()
+	return m, nil
 }
 
 // DecryptText returns decrypted value from text by a key.
-func DecryptText(text string, key []byte) (string, error) {
-	if text == "" {
-		return "", errors.New("decrypt empty text")
-	}
-	cipherText, err := hex.DecodeString(text)
+func DecryptText(secret string, m *Msg) (string, error) {
+	err := m.Decode()
 	if err != nil {
-		return "", fmt.Errorf("decrypt hex decode: %w", err)
+		return "", err
 	}
-	if len(cipherText) < aes.BlockSize {
-		return "", errors.New("invalid decryption cipher block length")
+	key, hash := Key(secret, m.byteSalt)
+	if !hmac.Equal(hash, m.byteHash) {
+		return "", errors.New("failed secret")
 	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", fmt.Errorf("new decrypt cipher: %w", err)
-	}
-	iv := cipherText[:aes.BlockSize]
-	cipherText = cipherText[aes.BlockSize:]
-	stream := cipher.NewCFBDecrypter(block, iv)
-	stream.XORKeyStream(cipherText, cipherText)
-	return string(cipherText), nil
+	return text.Decrypt(m.Value, key)
 }
 
 // File encrypts content from inFile to new file with name fileName by a key.

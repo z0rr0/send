@@ -28,6 +28,7 @@ const (
 	hashLength = 32
 )
 
+// Msg is struct with base parameter/results of encryption/decryption.
 type Msg struct {
 	Salt     string
 	Value    string
@@ -36,12 +37,12 @@ type Msg struct {
 	byteHash []byte
 }
 
-func (m *Msg) Encode() {
+func (m *Msg) encode() {
 	m.Salt = hex.EncodeToString(m.byteSalt)
 	m.Hash = hex.EncodeToString(m.byteHash)
 }
 
-func (m *Msg) Decode() error {
+func (m *Msg) decode() error {
 	b, err := hex.DecodeString(m.Salt)
 	if err != nil {
 		return fmt.Errorf("hex decode salt: %w", err)
@@ -74,6 +75,8 @@ func Key(secret string, salt []byte) ([]byte, []byte) {
 	return key, b
 }
 
+// Text encrypts plaintText using the secret.
+// Cipher message will be returned as Msg.Value.
 func Text(secret, plainText string) (*Msg, error) {
 	salt, err := Salt()
 	if err != nil {
@@ -85,13 +88,13 @@ func Text(secret, plainText string) (*Msg, error) {
 		return nil, err
 	}
 	m := &Msg{Value: cipherText, byteSalt: salt, byteHash: h}
-	m.Encode()
+	m.encode()
 	return m, nil
 }
 
-// DecryptText returns decrypted value from text by a key.
+// DecryptText returns decrypted value from m.Value using the secret.
 func DecryptText(secret string, m *Msg) (string, error) {
-	err := m.Decode()
+	err := m.decode()
 	if err != nil {
 		return "", err
 	}

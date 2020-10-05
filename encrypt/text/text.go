@@ -10,13 +10,13 @@ import (
 	"io"
 )
 
-// EmptyError is an error, when encrypted/decrypted text is empty.
-var EmptyError = errors.New("empty text")
+// ErrEmpty is an error, when encrypted/decrypted text is empty.
+var ErrEmpty = errors.New("empty text")
 
 // Encrypt encrypts text using AES cipher by a key.
 func Encrypt(value string, key []byte) (string, error) {
 	if value == "" {
-		return "", EmptyError
+		return "", ErrEmpty
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -36,7 +36,7 @@ func Encrypt(value string, key []byte) (string, error) {
 // Decrypt returns decrypted value from text by a key.
 func Decrypt(value string, key []byte) (string, error) {
 	if value == "" {
-		return "", EmptyError
+		return "", ErrEmpty
 	}
 	cipherText, err := hex.DecodeString(value)
 	if err != nil {

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	// saltSize is random salt, also used for storage file name
+	// saltSize is random s, also used for storage file name
 	saltSize = 128
 	// pbkdf2Iter is number of pbkdf2 iterations
 	pbkdf2Iter = 32768
@@ -29,34 +29,42 @@ const (
 
 // Msg is struct with base parameter/results of encryption/decryption.
 type Msg struct {
-	Salt     string
-	Value    string
-	Hash     string
-	byteSalt []byte
-	byteHash []byte
+	Salt  string
+	Value string
+	Hash  string
+	s     []byte
+	v     []byte
+	h     []byte
 }
 
 func (m *Msg) encode() {
-	m.Salt = hex.EncodeToString(m.byteSalt)
-	m.Hash = hex.EncodeToString(m.byteHash)
+	m.Salt = hex.EncodeToString(m.s)
+	m.Hash = hex.EncodeToString(m.h)
+	m.Value = hex.EncodeToString(m.v)
 }
 
 func (m *Msg) decode() error {
 	b, err := hex.DecodeString(m.Salt)
 	if err != nil {
-		return fmt.Errorf("hex decode salt: %w", err)
+		return fmt.Errorf("hex decode s: %w", err)
 	}
-	m.byteSalt = b
+	m.s = b
 
 	b, err = hex.DecodeString(m.Hash)
 	if err != nil {
 		return fmt.Errorf("hex decode hash: %w", err)
 	}
-	m.byteHash = b
+	m.h = b
+
+	b, err = hex.DecodeString(m.Value)
+	if err != nil {
+		return fmt.Errorf("hex decode value: %w", err)
+	}
+	m.v = b
 	return nil
 }
 
-// Salt returns random salt.
+// Salt returns random s.
 func Salt() ([]byte, error) {
 	salt := make([]byte, saltSize)
 	_, err := rand.Read(salt)
@@ -82,11 +90,11 @@ func Text(secret, plainText string) (*Msg, error) {
 		return nil, err
 	}
 	key, h := Key(secret, salt)
-	cipherText, err := text.Encrypt(plainText, key)
+	cipherText, err := text.Encrypt([]byte(plainText), key)
 	if err != nil {
 		return nil, err
 	}
-	m := &Msg{Value: cipherText, byteSalt: salt, byteHash: h}
+	m := &Msg{v: cipherText, s: salt, h: h}
 	m.encode()
 	return m, nil
 }
@@ -97,11 +105,15 @@ func DecryptText(secret string, m *Msg) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	key, hash := Key(secret, m.byteSalt)
-	if !hmac.Equal(hash, m.byteHash) {
+	key, hash := Key(secret, m.s)
+	if !hmac.Equal(hash, m.h) {
 		return "", errors.New("failed secret")
 	}
-	return text.Decrypt(m.Value, key)
+	plainText, err := text.Decrypt(m.v, key)
+	if err != nil {
+		return "", err
+	}
+	return string(plainText), nil
 }
 
 // File encrypts content from src to new file with name fileName by a key.

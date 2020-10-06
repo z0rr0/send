@@ -1,8 +1,6 @@
 package encrypt
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
 	"encoding/hex"
@@ -14,6 +12,7 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/sha3"
 
+	"github.com/z0rr0/send/encrypt/stream"
 	"github.com/z0rr0/send/encrypt/text"
 )
 
@@ -105,45 +104,28 @@ func DecryptText(secret string, m *Msg) (string, error) {
 	return text.Decrypt(m.Value, key)
 }
 
-// File encrypts content from inFile to new file with name fileName by a key.
-func File(inFile io.Reader, fileName string, key []byte) error {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return fmt.Errorf("new file ecrypt cipher: %w", err)
-	}
-	// the key is unique for each cipher-text, then it's ok to use a zero IV.
-	var iv [aes.BlockSize]byte
-	stream := cipher.NewOFB(block, iv[:])
-	outFile, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+// File encrypts content from src to new file with name fileName by a key.
+func File(src io.Reader, fileName string, key []byte) error {
+	dst, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("open file for ecryption: %w", err)
 	}
-	writer := &cipher.StreamWriter{S: stream, W: outFile}
-	// copy the input file to the output file, encrypting as we go.
-	if _, err := io.Copy(writer, inFile); err != nil {
-		return fmt.Errorf("copy for ecryption: %w", err)
-	}
-	return outFile.Close()
-}
-
-// DecryptFile writes decrypted content of file fileName to w by a key.
-func DecryptFile(w io.Writer, fileName string, key []byte) error {
-	inFile, err := os.Open(fileName)
-	if err != nil {
-		return fmt.Errorf("open file for decryption: %w", err)
-	}
-	block, err := aes.NewCipher(key)
+	err = stream.Encrypt(src, dst, key)
 	if err != nil {
 		return err
 	}
-	// if the key is unique for each cipher-text, then it's ok to use a zero IV.
-	var iv [aes.BlockSize]byte
-	stream := cipher.NewOFB(block, iv[:])
+	return dst.Close()
+}
 
-	reader := &cipher.StreamReader{S: stream, R: inFile}
-	// copy the input file to the output file, decrypting as we go.
-	if _, err := io.Copy(w, reader); err != nil {
-		return fmt.Errorf("copy for decryption: %w", err)
+// DecryptFile writes decrypted content of file fileName to dst by a key.
+func DecryptFile(dst io.Writer, fileName string, key []byte) error {
+	src, err := os.Open(fileName)
+	if err != nil {
+		return fmt.Errorf("open file for decryption: %w", err)
 	}
-	return inFile.Close()
+	err = stream.Decrypt(src, dst, key)
+	if err != nil {
+		return err
+	}
+	return src.Close()
 }

@@ -64,7 +64,7 @@ func (m *Msg) decode() error {
 	return nil
 }
 
-// Salt returns random s.
+// Salt returns random bytes.
 func Salt() ([]byte, error) {
 	salt := make([]byte, saltSize)
 	_, err := rand.Read(salt)
@@ -100,6 +100,7 @@ func Text(secret, plainText string) (*Msg, error) {
 }
 
 // DecryptText returns decrypted value from m.Value using the secret.
+// Salt in m.Salt is expected
 func DecryptText(secret string, m *Msg) (string, error) {
 	err := m.decode()
 	if err != nil {
@@ -116,7 +117,8 @@ func DecryptText(secret string, m *Msg) (string, error) {
 	return string(plainText), nil
 }
 
-// File encrypts content from src to new file with name fileName by a key.
+// File encrypts content from src to new file with name fileName using the secret.
+// Salt and key hash are returned as m.Salt and m.Hash.
 func File(secret string, src io.Reader, fileName string) (*Msg, error) {
 	salt, err := Salt()
 	if err != nil {
@@ -136,7 +138,7 @@ func File(secret string, src io.Reader, fileName string) (*Msg, error) {
 	return m, dst.Close()
 }
 
-// DecryptFile writes decrypted content of file fileName to dst by a key.
+// DecryptFile writes decrypted content of file fileName to dst using the secret and m.Salt.
 func DecryptFile(secret string, m *Msg, dst io.Writer, fileName string) error {
 	err := m.decode()
 	if err != nil {

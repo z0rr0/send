@@ -29,6 +29,11 @@ lint: check_fmt
 test: lint
 	go test -race -v -cover $(PWD)/...
 
+# github actions test
+actions: check_fmt
+	go vet $(PWD)/...
+	go test -race -v -cover $(PWD)/...
+
 clean:
 	rm $(TARGET)
 	find $(PWD)/ -type f -name "*.out" -delete

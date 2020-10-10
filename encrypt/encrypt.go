@@ -20,7 +20,7 @@ const (
 	// saltSize is random s, also used for storage file name
 	saltSize = 128
 	// pbkdf2Iter is number of pbkdf2 iterations
-	pbkdf2Iter = 32768
+	pbkdf2Iter = 65536
 	// key length for AES-256
 	aesKeyLength = 32
 	// hashLength is length of file hash.
@@ -117,24 +117,36 @@ func DecryptText(secret string, m *Msg) (string, error) {
 }
 
 // File encrypts content from src to new file with name fileName by a key.
-func File(src io.Reader, fileName string, key []byte) error {
+func File(secret string, src io.Reader, fileName string) (*Msg, error) {
+	salt, err := Salt()
+	if err != nil {
+		return nil, err
+	}
 	dst, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("open file for ecryption: %w", err)
+		return nil, fmt.Errorf("open file for ecryption: %w", err)
 	}
+	key, h := Key(secret, salt)
 	err = stream.Encrypt(src, dst, key)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return dst.Close()
+	m := &Msg{s: salt, h: h}
+	m.encode()
+	return m, dst.Close()
 }
 
 // DecryptFile writes decrypted content of file fileName to dst by a key.
-func DecryptFile(dst io.Writer, fileName string, key []byte) error {
+func DecryptFile(secret string, m *Msg, dst io.Writer, fileName string) error {
+	err := m.decode()
+	if err != nil {
+		return err
+	}
 	src, err := os.Open(fileName)
 	if err != nil {
 		return fmt.Errorf("open file for decryption: %w", err)
 	}
+	key, _ := Key(secret, m.s)
 	err = stream.Decrypt(src, dst, key)
 	if err != nil {
 		return err

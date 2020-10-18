@@ -3,7 +3,6 @@ package encrypt
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -42,24 +41,20 @@ func TestFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "test_file")
+	base := os.TempDir()
+	m1, err := File(secret, &src, base)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fileName := tmpFile.Name()
+	fileName := m1.Value
+	t.Logf("created file name = %s", fileName)
 	defer func() {
 		if e := os.Remove(fileName); e != nil {
 			t.Error(e)
+		} else {
+			t.Logf("deleted file name = %s", fileName)
 		}
 	}()
-	m1, err := File(secret, &src, fileName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = tmpFile.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
 	// decrypt
 	m2 := &Msg{Salt: m1.Salt}
 	err = DecryptFile(secret, m2, &dst, fileName)

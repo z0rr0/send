@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/sha3"
@@ -17,8 +18,10 @@ import (
 )
 
 const (
-	// saltSize is random s, also used for storage file name
+	// saltSize is random of salt
 	saltSize = 128
+	// fileNameSize is used for storage file name
+	fileNameSize = 64
 	// pbkdf2Iter is number of pbkdf2 iterations
 	pbkdf2Iter = 65536
 	// key length for AES-256
@@ -64,10 +67,42 @@ func (m *Msg) decode() error {
 	return nil
 }
 
+// random returns n-random bytes.
+func random(n int) ([]byte, error) {
+	result := make([]byte, n)
+	_, err := rand.Read(result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// createFile creates a new file with random name inside base path.
+func createFile(base string) (*os.File, error) {
+	const attempts = 10
+	for i := 0; i < attempts; i++ {
+		value, err := random(fileNameSize)
+		if err != nil {
+			return nil, fmt.Errorf("random file name: %w", err)
+		}
+		fullPath := filepath.Join(base, hex.EncodeToString(value))
+		f, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			if !os.IsExist(err) {
+				// unexpected error
+				return nil, fmt.Errorf("random file creation: %w", err)
+			}
+			// do new attempt
+		} else {
+			return f, nil
+		}
+	}
+	return nil, errors.New("can not create new file")
+}
+
 // Salt returns random bytes.
 func Salt() ([]byte, error) {
-	salt := make([]byte, saltSize)
-	_, err := rand.Read(salt)
+	salt, err := random(saltSize)
 	if err != nil {
 		return nil, fmt.Errorf("read rand: %w", err)
 	}
@@ -117,14 +152,15 @@ func DecryptText(secret string, m *Msg) (string, error) {
 	return string(plainText), nil
 }
 
-// File encrypts content from src to new file with name fileName using the secret.
+// File encrypts content from src to a new file using the secret.
 // Salt and key hash are returned as m.Salt and m.Hash.
-func File(secret string, src io.Reader, fileName string) (*Msg, error) {
+// The name if new file will be stored in m.Value.
+func File(secret string, src io.Reader, base string) (*Msg, error) {
 	salt, err := Salt()
 	if err != nil {
 		return nil, err
 	}
-	dst, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	dst, err := createFile(base)
 	if err != nil {
 		return nil, fmt.Errorf("open file for ecryption: %w", err)
 	}
@@ -135,6 +171,7 @@ func File(secret string, src io.Reader, fileName string) (*Msg, error) {
 	}
 	m := &Msg{s: salt, h: h}
 	m.encode()
+	m.Value = dst.Name()
 	return m, dst.Close()
 }
 

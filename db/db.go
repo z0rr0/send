@@ -62,16 +62,16 @@ func expired(tx *sql.Tx) ([]*Item, error) {
 	return items, nil
 }
 
-// delete removes items by their identifiers.
-func delete(tx *sql.Tx, items ...*Item) (int64, error) {
+// deleteItems removes items by their identifiers.
+func deleteItems(tx *sql.Tx, items ...*Item) (int64, error) {
 	// statement will be closed when the transaction has been committed or rolled back
 	stmt, err := tx.Prepare("DELETE FROM `storage` WHERE `id` IN (?);")
 	if err != nil {
-		return 0, fmt.Errorf("can not prepare delete transaction: %w", err)
+		return 0, fmt.Errorf("can not prepare deleteItems transaction: %w", err)
 	}
 	result, err := tx.Stmt(stmt).Exec(stringIDs(items))
 	if err != nil {
-		return 0, fmt.Errorf("can not exec delete transaction: %w", err)
+		return 0, fmt.Errorf("can not exec deleteItems transaction: %w", err)
 	}
 	return result.RowsAffected()
 }
@@ -84,14 +84,14 @@ func deleteByDate(db *sql.DB) (int64, error) {
 		if err != nil {
 			return err
 		}
-		n, err = delete(tx, items...)
+		n, err = deleteItems(tx, items...)
 		if err != nil {
 			return err
 		}
 		return deleteFiles(items...)
 	})
 	if txErr != nil {
-		return 0, fmt.Errorf("failed delete item by date: %w", txErr)
+		return 0, fmt.Errorf("failed deleteItems item by date: %w", txErr)
 	}
 	return n, nil
 }
@@ -104,13 +104,13 @@ func GCMonitor(ch <-chan Item, closed chan struct{}, db *sql.DB, period time.Dur
 		select {
 		case item := <-ch:
 			if err := item.Delete(db); err != nil {
-				logErr.Printf("failed delete item: %v\n", err)
+				logErr.Printf("failed deleteItems item: %v\n", err)
 			} else {
 				logInfo.Printf("deleted item=%v\n", item.ID)
 			}
 		case <-tc:
 			if n, err := deleteByDate(db); err != nil {
-				logErr.Printf("failed delete items by date: %v\n", err)
+				logErr.Printf("failed deleteItems items by date: %v\n", err)
 			} else {
 				if n > 0 {
 					logInfo.Printf("deleted %v expired items\n", n)

@@ -35,6 +35,7 @@ func (item *Item) FullPath() string {
 
 // ContentType returns string content-type for stored file.
 func (item *Item) ContentType() string {
+	const defaultContent = "application/octet-stream"
 	var ext string
 	i := strings.LastIndex(item.Name, ".")
 	if i > -1 {
@@ -42,7 +43,7 @@ func (item *Item) ContentType() string {
 	}
 	m := mime.TypeByExtension(ext)
 	if m == "" {
-		return "application/octet-stream"
+		return defaultContent
 	}
 	return m
 }
@@ -50,7 +51,7 @@ func (item *Item) ContentType() string {
 // GetURL returns item's URL.
 func (item *Item) GetURL(r *http.Request, secure bool) *url.URL {
 	// r.URL.Scheme is blank, so use hint from settings
-	scheme := "http"
+	var scheme = "http"
 	if secure {
 		scheme = "https"
 	}
@@ -70,11 +71,11 @@ func (item *Item) IsFileExists() bool {
 // Delete removes items from database and related file from file system.
 func (item *Item) Delete(db *sql.DB) error {
 	var txErr = InTransaction(db, func(tx *sql.Tx) error {
-		_, err := delete(tx, item)
+		_, err := deleteItems(tx, item)
 		return err
 	})
 	if txErr != nil {
-		return fmt.Errorf("failed delete item by id: %w", txErr)
+		return fmt.Errorf("failed deleteItems item by id: %w", txErr)
 	}
 	return deleteFiles(item)
 }
@@ -114,11 +115,10 @@ func stringIDs(items []*Item) string {
 
 // deleteFiles removes files of items.
 func deleteFiles(items ...*Item) error {
-	var err error
 	for _, item := range items {
-		err = os.RemoveAll(item.FullPath())
+		err := os.RemoveAll(item.FullPath())
 		if err != nil {
-			return fmt.Errorf("delete file of item=%d: %w", item.ID, err)
+			return fmt.Errorf("deleteItems file of item=%d: %w", item.ID, err)
 		}
 	}
 	return nil

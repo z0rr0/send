@@ -40,16 +40,18 @@ type Msg struct {
 	h     []byte
 }
 
-func (m *Msg) encode() {
+func (m *Msg) encode(withValue bool) {
 	m.Salt = hex.EncodeToString(m.s)
 	m.Hash = hex.EncodeToString(m.h)
-	m.Value = hex.EncodeToString(m.v)
+	if withValue {
+		m.Value = hex.EncodeToString(m.v)
+	}
 }
 
-func (m *Msg) decode() error {
+func (m *Msg) decode(withValue bool) error {
 	b, err := hex.DecodeString(m.Salt)
 	if err != nil {
-		return fmt.Errorf("hex decode s: %w", err)
+		return fmt.Errorf("hex decode salt: %w", err)
 	}
 	m.s = b
 
@@ -59,11 +61,13 @@ func (m *Msg) decode() error {
 	}
 	m.h = b
 
-	b, err = hex.DecodeString(m.Value)
-	if err != nil {
-		return fmt.Errorf("hex decode value: %w", err)
+	if withValue {
+		b, err = hex.DecodeString(m.Value)
+		if err != nil {
+			return fmt.Errorf("hex decode value: %w", err)
+		}
+		m.v = b
 	}
-	m.v = b
 	return nil
 }
 
@@ -130,14 +134,14 @@ func Text(secret, plainText string) (*Msg, error) {
 		return nil, err
 	}
 	m := &Msg{v: cipherText, s: salt, h: h}
-	m.encode()
+	m.encode(true)
 	return m, nil
 }
 
 // DecryptText returns decrypted value from m.Value using the secret.
 // Salt in m.Salt is expected
 func DecryptText(secret string, m *Msg) (string, error) {
-	err := m.decode()
+	err := m.decode(true)
 	if err != nil {
 		return "", err
 	}
@@ -169,19 +173,18 @@ func File(secret string, src io.Reader, base string) (*Msg, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Msg{s: salt, h: h}
-	m.encode()
-	m.Value = dst.Name()
+	m := &Msg{s: salt, h: h, Value: dst.Name()}
+	m.encode(false)
 	return m, dst.Close()
 }
 
-// DecryptFile writes decrypted content of file fileName to dst using the secret and m.Salt.
-func DecryptFile(secret string, m *Msg, dst io.Writer, fileName string) error {
-	err := m.decode()
+// DecryptFile writes decrypted content of file with path from m.Value to dst using the secret and m.Salt.
+func DecryptFile(secret string, m *Msg, dst io.Writer) error {
+	err := m.decode(false)
 	if err != nil {
 		return err
 	}
-	src, err := os.Open(fileName)
+	src, err := os.Open(m.Value)
 	if err != nil {
 		return fmt.Errorf("open file for decryption: %w", err)
 	}

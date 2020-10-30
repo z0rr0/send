@@ -7,6 +7,10 @@ FLAG=-X main.Version=$(TAG) -X main.Revision=git:$(VERSION) -X main.BuildDate=$(
 PIDFILE=/tmp/.$(TARGET).pid
 PWD=$(shell pwd)
 CONFIG=config.toml
+# test configuration
+TEST_CONFIG=test_$(TARGET).toml
+TEST_DB=test_$(TARGET).sqlite
+TEST_STORAGE=test_$(TARGET)
 
 all: test
 
@@ -14,6 +18,14 @@ build:
 	go build -o $(PWD)/$(TARGET) -ldflags "$(FLAG)"
 
 rebuild: clean lint build
+
+prepare:
+	@rm -rf /tmp/test_$(TARGET)*
+	@cp doc/config.toml /tmp/$(TEST_CONFIG)
+	@sed -i.b 's/"db.sqlite"/"\/tmp\/$(TEST_DB)"/' /tmp/$(TEST_CONFIG)
+	@sed -i.b 's/"storage"/"\/tmp\/$(TEST_STORAGE)"/' /tmp/$(TEST_CONFIG)
+	@mkdir /tmp/$(TEST_STORAGE)
+	@cat doc/schema.sql | sqlite3 /tmp/$(TEST_DB)
 
 check_fmt:
 	@test -z "`gofmt -l .`" || { echo "ERROR: failed gofmt, for more details run - make fmt"; false; }
@@ -26,11 +38,11 @@ lint: check_fmt
 	go vet $(PWD)/...
 	golint -set_exit_status $(PWD)/...
 
-test: lint
+test: lint prepare
 	go test -race -v -cover $(PWD)/...
 
 # github actions test
-actions: check_fmt
+actions: check_fmt prepare
 	go vet $(PWD)/...
 	go test -race -v -cover $(PWD)/...
 

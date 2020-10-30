@@ -36,7 +36,7 @@ type settings struct {
 	GC    int    `toml:"gc"`
 }
 
-// Config is configuration struct.
+// Config is a main configuration structure.
 type Config struct {
 	Server   server   `toml:"server"`
 	Storage  storage  `toml:"storage"`
@@ -75,6 +75,7 @@ func (c *Config) Secret(p string) string {
 
 // isValid checks the settings are valid.
 func (c *Config) isValid() error {
+	const userRead os.FileMode = 0600
 	fullPath, err := filepath.Abs(strings.Trim(c.Storage.Dir, " "))
 	if err != nil {
 		return err
@@ -86,18 +87,18 @@ func (c *Config) isValid() error {
 	if !info.IsDir() {
 		return errors.New("storage is not a directory")
 	}
-	mode := uint(info.Mode().Perm())
-	if mode&uint(0600) != 0600 {
-		return errors.New("storage dir is not writable or readable")
+	mode := info.Mode().Perm()
+	if mode&userRead != 0600 {
+		return fmt.Errorf("storage dir is not writable or readable, mode=%v", mode)
 	}
 	c.Storage.Dir = fullPath
 
-	err = isMoreThanZero(c.Server.Timeout, "server.timeout", err)
-	err = isMoreThanZero(c.Server.Port, "server.port", err)
-	err = isMoreThanZero(c.Settings.TTL, "settings.ttl", err)
-	err = isMoreThanZero(c.Settings.Times, "settings.times", err)
-	err = isMoreThanZero(c.Settings.Size, "settings.size", err)
-	err = isMoreThanZero(c.Settings.GC, "settings.gc", err)
+	err = isGreaterThanZero(c.Server.Timeout, "server.timeout", err)
+	err = isGreaterThanZero(c.Server.Port, "server.port", err)
+	err = isGreaterThanZero(c.Settings.TTL, "settings.ttl", err)
+	err = isGreaterThanZero(c.Settings.Times, "settings.times", err)
+	err = isGreaterThanZero(c.Settings.Size, "settings.size", err)
+	err = isGreaterThanZero(c.Settings.GC, "settings.gc", err)
 	return err
 }
 
@@ -128,13 +129,13 @@ func New(filename string) (*Config, error) {
 	return c, nil
 }
 
-// isMoreThanZero returns error if err is already error or x is less than 1.
-func isMoreThanZero(x int, name string, err error) error {
+// isGreaterThanZero returns error if err is already error or x is less than 1.
+func isGreaterThanZero(x int, name string, err error) error {
 	if err != nil {
 		return err
 	}
 	if x < 1 {
-		return fmt.Errorf("%s=%d should be more than 1", name, x)
+		return fmt.Errorf("%s=%d should be greater than 1", name, x)
 	}
 	return nil
 }

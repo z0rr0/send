@@ -121,6 +121,10 @@ func New(filename string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config parsing: %w", err)
 	}
+	err = c.isValid()
+	if err != nil {
+		return nil, fmt.Errorf("config validation: %w", err)
+	}
 	database, err := sql.Open("sqlite3", c.Storage.File)
 	if err != nil {
 		return nil, fmt.Errorf("db file: %w", err)

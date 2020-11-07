@@ -43,7 +43,7 @@ func TestEncrypt(t *testing.T) {
 		if err != nil {
 			t.Errorf("failed decrypt case=%d: %e", i, err)
 		}
-		if bytes.Compare(d, cb) != 0 {
+		if !bytes.Equal(d, cb) {
 			t.Errorf("failed compare decrypt case=%d", i)
 		}
 	}
@@ -66,7 +66,7 @@ func TestDecrypt(t *testing.T) {
 		if n := len(d); n != len(cb)-aes.BlockSize {
 			t.Errorf("unexpected lenght=%d for case=%d", n, i)
 		}
-		if bytes.Compare([]byte(c)[aes.BlockSize:], d) == 0 {
+		if bytes.Equal([]byte(c)[aes.BlockSize:], d) {
 			t.Errorf("unexpected result for case=%d", i)
 		}
 	}
@@ -84,7 +84,7 @@ func BenchmarkEncrypt(b *testing.B) {
 		if err != nil {
 			b.Error("failed decrypt")
 		}
-		if bytes.Compare(d, msg) != 0 {
+		if !bytes.Equal(d, msg) {
 			b.Error("failed decrypted compare")
 		}
 	}

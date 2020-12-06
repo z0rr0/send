@@ -17,4 +17,4 @@
 # buit files
 send
 db.sqlite
-config.json
+ignore

@@ -116,12 +116,17 @@ func Salt() ([]byte, error) {
 	return salt, nil
 }
 
+// Hash returns SHA3 ShakeSum256 check sum with length 32 bit.
+func Hash(data []byte) []byte {
+	b := make([]byte, hashLength)
+	sha3.ShakeSum256(b, data)
+	return b
+}
+
 // Key calculates and returns secret key and its SHA512 hash.
 func Key(secret string, salt []byte) ([]byte, []byte) {
 	key := pbkdf2.Key([]byte(secret), salt, pbkdf2Iter, aesKeyLength, sha3.New512)
-	b := make([]byte, hashLength)
-	sha3.ShakeSum256(b, append(key, salt...))
-	return key, b
+	return key, Hash(append(key, salt...))
 }
 
 // Text encrypts plaintText using the secret.

@@ -30,6 +30,9 @@ const (
 	hashLength = 32
 )
 
+// ErrSecret is an error when the secret hash is incorrect.
+var ErrSecret = errors.New("failed secret")
+
 // Msg is struct with base parameter/results of encryption/decryption.
 type Msg struct {
 	Salt  string
@@ -138,7 +141,7 @@ func Text(secret, plainText string) (*Msg, error) {
 	return m, nil
 }
 
-// DecryptText returns decrypted value from m.Value using the secret.
+// DecryptText returns decrypted value from Msg.Value using the secret.
 // Salt in m.Salt is expected
 func DecryptText(secret string, m *Msg) (string, error) {
 	err := m.decode(true)
@@ -147,7 +150,7 @@ func DecryptText(secret string, m *Msg) (string, error) {
 	}
 	key, hash := Key(secret, m.s)
 	if !hmac.Equal(hash, m.h) {
-		return "", errors.New("failed secret")
+		return "", ErrSecret
 	}
 	plainText, err := text.Decrypt(m.v, key)
 	if err != nil {
@@ -157,7 +160,7 @@ func DecryptText(secret string, m *Msg) (string, error) {
 }
 
 // File encrypts content from src to a new file using the secret.
-// Salt and key hash are returned as m.Salt and m.Hash.
+// Salt and key hash are returned as Msg.Salt and Msg.Hash.
 // The name if new file will be stored in m.Value.
 func File(secret string, src io.Reader, base string) (*Msg, error) {
 	salt, err := Salt()
@@ -178,7 +181,8 @@ func File(secret string, src io.Reader, base string) (*Msg, error) {
 	return m, dst.Close()
 }
 
-// DecryptFile writes decrypted content of file with path from m.Value to dst using the secret and m.Salt.
+// DecryptFile writes decrypted content of file with path from Msg.Value,
+// checking Msg.Hash to dst using the secret and Msg.Salt.
 func DecryptFile(secret string, m *Msg, dst io.Writer) error {
 	err := m.decode(false)
 	if err != nil {
@@ -188,7 +192,10 @@ func DecryptFile(secret string, m *Msg, dst io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("open file for decryption: %w", err)
 	}
-	key, _ := Key(secret, m.s)
+	key, hash := Key(secret, m.s)
+	if !hmac.Equal(hash, m.h) {
+		return ErrSecret
+	}
 	err = stream.Decrypt(src, dst, key)
 	if err != nil {
 		return err

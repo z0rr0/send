@@ -30,12 +30,18 @@ type storage struct {
 	Db   *sql.DB
 }
 
+// String returns base info about storage.
+func (s *storage) String() string {
+	return fmt.Sprintf("database=%s, files=%s", s.File, s.Dir)
+}
+
 type settings struct {
-	TTL   int    `toml:"ttl"`
-	Times int    `toml:"times"`
-	Size  int    `toml:"size"`
-	Salt  string `toml:"salt"`
-	GC    int    `toml:"gc"`
+	TTL      int    `toml:"ttl"`
+	Times    int    `toml:"times"`
+	Size     int    `toml:"size"`
+	Salt     string `toml:"salt"`
+	GC       int    `toml:"gc"`
+	Shutdown int    `toml:"shutdown"`
 }
 
 // Config is a main configuration structure.
@@ -55,7 +61,7 @@ func (c *Config) Close() error {
 	return c.Storage.Db.Close()
 }
 
-// Timeout is service timeout in seconds.
+// Timeout is service timeout.
 func (c *Config) Timeout() time.Duration {
 	return time.Duration(c.Settings.TTL) * time.Second
 }
@@ -73,6 +79,11 @@ func (c *Config) MaxFileSize() int {
 // Secret returns string with salt.
 func (c *Config) Secret(p string) string {
 	return p + c.Settings.Salt
+}
+
+// Shutdown is shutdown timeout.
+func (c *Config) Shutdown() time.Duration {
+	return time.Duration(c.Settings.Shutdown) * time.Second
 }
 
 // isValid checks the settings are valid.
@@ -101,6 +112,7 @@ func (c *Config) isValid() error {
 	err = isGreaterThanZero(c.Settings.Times, "settings.times", err)
 	err = isGreaterThanZero(c.Settings.Size, "settings.size", err)
 	err = isGreaterThanZero(c.Settings.GC, "settings.gc", err)
+	err = isGreaterThanZero(c.Settings.Shutdown, "settings.shutdown", err)
 	return err
 }
 

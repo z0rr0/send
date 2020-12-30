@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
+	"time"
 
 	"github.com/z0rr0/send/cfg"
+	"github.com/z0rr0/send/db"
 	"github.com/z0rr0/send/logging"
 )
 
@@ -64,10 +69,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	gcChan := make(chan struct{})    // to close GC monitor
+	deleteChan := make(chan db.Item) // to delete items by after attempts expirations
 	defer func() {
 		if e := c.Close(); e != nil {
 			logger.Error("close cfg error: %v", e)
 		}
+		close(deleteChan)
 	}()
 	timeout := c.Timeout()
 	srv := &http.Server{
@@ -78,5 +86,69 @@ func main() {
 		MaxHeaderBytes: c.MaxFileSize(),
 		ErrorLog:       logging.ErrorLog(),
 	}
-	logger.Info("\n%v\nstorage: %v\nlisten addr: %v", info, c.Storage.Db, srv.Addr)
+	logger.Info("\n%v\n%s\nlisten addr: %v", info, c.Storage.String(), srv.Addr)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		start, code := time.Now(), http.StatusOK
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		ctx, e := logging.NewWithContext(ctx, "")
+		if e != nil {
+			logger.Error("init new logging context: %v", e)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		lg, e := logging.Get(ctx)
+		if e != nil {
+			logger.Error("read new logging context: %v", e)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		defer func() {
+			lg.Info("%-5v %v\t%-12v\t%v",
+				r.Method,
+				code,
+				time.Since(start),
+				r.URL.String(),
+			)
+		}()
+		_, e = fmt.Fprintf(w, "%s\n", versionInfo())
+		if e != nil {
+			lg.Error("failed: %v", e)
+		}
+	})
+
+	// run GC monitoring
+	go db.GCMonitor(deleteChan, gcChan, c.Storage.Db, c.GCPeriod(), logger)
+
+	idleConnsClosed := make(chan struct{})
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		done := make(chan struct{})
+		signal.Notify(sigint, os.Interrupt, os.Signal(syscall.SIGTERM), os.Signal(syscall.SIGQUIT))
+		<-sigint
+
+		ctx, cancel := context.WithTimeout(context.Background(), c.Shutdown())
+		defer cancel()
+		go func() {
+			defer close(done)
+			if e := srv.Shutdown(ctx); e != nil {
+				logger.Error("HTTP server Shutdown: %v", e)
+			}
+		}()
+		select {
+		case <-done:
+			logger.Info("HTTP server successfully stopped")
+		case <-ctx.Done():
+			logger.Error("shutdown timeout: %v", ctx.Err())
+		}
+		close(idleConnsClosed)
+		close(gcChan)
+	}()
+	if e := srv.ListenAndServe(); e != http.ErrServerClosed {
+		logger.Error("HTTP server ListenAndServe: %v", e)
+	}
+	<-idleConnsClosed
+	<-gcChan
+	logger.Info("service stopped")
 }

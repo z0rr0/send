@@ -9,8 +9,9 @@ file = "db.sqlite" # database file
 dir = "storage"    # files storage directory
 
 [settings]
-ttl = 604800 # max time to live (seconds) - 7 days
-times = 100  # max times for users requests
-size = 16    # max file size (Mb)
-salt = "abc" # application salt (replace it by a long random string for production)
-gc = 10      # "garbage collector" timeout (seconds)
+ttl = 604800  # max time to live (seconds) - 7 days
+times = 100   # max times for users requests
+size = 16     # max file size (Mb)
+salt = "abc"  # application salt (replace it by a long random string for production)
+gc = 10       # "garbage collector" timeout (seconds)
+shutdown = 10 # shutdown timeout (seconds)

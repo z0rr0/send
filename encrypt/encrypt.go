@@ -18,13 +18,15 @@ import (
 )
 
 const (
-	// saltSize is random of salt
+	// saltSize is random of salt.
 	saltSize = 128
-	// fileNameSize is used for storage file name
+	// fileNameSize is used for storage file name.
 	fileNameSize = 64
-	// pbkdf2Iter is number of pbkdf2 iterations
+	// fileCreateAttempts is a number of attempts to create new file with unique name.
+	fileCreateAttempts = 10
+	// pbkdf2Iter is number of pbkdf2 iterations.
 	pbkdf2Iter = 65536
-	// key length for AES-256
+	// key length for AES-256.
 	aesKeyLength = 32
 	// hashLength is length of file hash.
 	hashLength = 32
@@ -86,8 +88,7 @@ func random(n int) ([]byte, error) {
 
 // createFile creates a new file with random name inside base path.
 func createFile(base string) (*os.File, error) {
-	const attempts = 10
-	for i := 0; i < attempts; i++ {
+	for i := 0; i < fileCreateAttempts; i++ {
 		value, err := random(fileNameSize)
 		if err != nil {
 			return nil, fmt.Errorf("random file name: %w", err)
@@ -104,7 +105,7 @@ func createFile(base string) (*os.File, error) {
 			return f, nil
 		}
 	}
-	return nil, errors.New("can not create new file")
+	return nil, fmt.Errorf("can not create new file after %d attempts", fileCreateAttempts)
 }
 
 // Salt returns random bytes.

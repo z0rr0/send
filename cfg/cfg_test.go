@@ -1,10 +1,18 @@
 package cfg
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 const (
 	// test config, defined in Makefile
-	testConfig = "/tmp/test_send.toml"
+	cfgName = "test_send.toml"
+)
+
+var (
+	testConfig = filepath.Join(os.Getenv("TMPDIR"), cfgName)
 )
 
 func TestNew(t *testing.T) {

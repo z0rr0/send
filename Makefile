@@ -3,8 +3,10 @@ TS=$(shell date -u +"%F_%T")
 TAG=$(shell git tag | sort --version-sort | tail -1)
 COMMIT=$(shell git log --oneline | head -1)
 VERSION=$(firstword $(COMMIT))
+# use system environment variable TMPDIR
+ESCAPED_TMPDIR=$(shell echo $(TMPDIR) | sed 's/\//\\\//g')
 FLAG=-X main.Version=$(TAG) -X main.Revision=git:$(VERSION) -X main.BuildDate=$(TS)
-PIDFILE=/tmp/.$(TARGET).pid
+PIDFILE=$(TMPDIR).$(TARGET).pid
 PWD=$(shell pwd)
 CONFIG=config.toml
 # test configuration
@@ -20,12 +22,12 @@ build:
 rebuild: clean lint build
 
 prepare:
-	@rm -rf /tmp/test_$(TARGET)*
-	@cp doc/config.toml /tmp/$(TEST_CONFIG)
-	@sed -i.b 's/"db.sqlite"/"\/tmp\/$(TEST_DB)"/' /tmp/$(TEST_CONFIG)
-	@sed -i.b 's/"storage"/"\/tmp\/$(TEST_STORAGE)"/' /tmp/$(TEST_CONFIG)
-	@mkdir /tmp/$(TEST_STORAGE)
-	@cat doc/schema.sql | sqlite3 /tmp/$(TEST_DB)
+	@rm -rf $(TMPDIR)test_$(TARGET)*
+	@cp doc/config.toml $(TMPDIR)$(TEST_CONFIG)
+	@sed -i.b 's/"db.sqlite"/"$(ESCAPED_TMPDIR)$(TEST_DB)"/' $(TMPDIR)$(TEST_CONFIG)
+	@sed -i.b 's/"storage"/"$(ESCAPED_TMPDIR)$(TEST_STORAGE)"/' $(TMPDIR)$(TEST_CONFIG)
+	@mkdir $(TMPDIR)$(TEST_STORAGE)
+	@cat doc/schema.sql | sqlite3 $(TMPDIR)$(TEST_DB)
 
 check_fmt:
 	@test -z "`gofmt -l .`" || { echo "ERROR: failed gofmt, for more details run - make fmt"; false; }
@@ -45,11 +47,12 @@ test: lint prepare
 # github actions test
 actions: check_fmt prepare
 	go vet $(PWD)/...
-	go test -race -v -cover $(PWD)/...
+	go test -race -cover $(PWD)/...
 
 clean:
 	rm $(TARGET)
 	find $(PWD)/ -type f -name "*.out" -delete
+	@rm -rf $(TMPDIR)test_$(TARGET)*
 
 # for local running only
 start: build

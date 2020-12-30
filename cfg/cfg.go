@@ -1,5 +1,7 @@
 package cfg
 
+// Package cfg contains structures and functions for configurations reading and validation.
+
 import (
 	"database/sql"
 	"errors"

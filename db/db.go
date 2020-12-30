@@ -3,15 +3,9 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
-	"os"
 	"time"
-)
 
-var (
-	// internal loggers
-	logErr  = log.New(os.Stderr, "ERROR [db]: ", log.Ldate|log.Ltime|log.Lshortfile)
-	logInfo = log.New(os.Stdout, "INFO [db]: ", log.Ldate|log.Ltime)
+	"github.com/z0rr0/send/logging"
 )
 
 // InTransaction runs method f inside a database transaction and does commit or rollback.
@@ -97,29 +91,29 @@ func deleteByDate(db *sql.DB) (int64, error) {
 }
 
 // GCMonitor is garbage collection monitoring to delete expired by date or counter items.
-func GCMonitor(ch <-chan Item, closed chan struct{}, db *sql.DB, period time.Duration) {
+func GCMonitor(ch <-chan Item, closed chan struct{}, db *sql.DB, period time.Duration, l *logging.Log) {
 	ticker := time.NewTicker(period)
 	defer ticker.Stop()
 
-	logInfo.Printf("GC monitor is running, period=%v\n", period)
+	l.Info("GC monitor is running, period=%v\n", period)
 	for {
 		select {
 		case item := <-ch:
 			if err := item.Delete(db); err != nil {
-				logErr.Printf("failed deleteItems item: %v\n", err)
+				l.Error("failed deleteItems item: %v\n", err)
 			} else {
-				logInfo.Printf("deleted item=%v\n", item.ID)
+				l.Info("deleted item=%v\n", item.ID)
 			}
 		case <-ticker.C:
 			if n, err := deleteByDate(db); err != nil {
-				logErr.Printf("failed deleteItems items by date: %v\n", err)
+				l.Error("failed deleteItems items by date: %v\n", err)
 			} else {
 				if n > 0 {
-					logInfo.Printf("deleted %v expired items\n", n)
+					l.Info("deleted %v expired items\n", n)
 				}
 			}
 		case <-closed:
-			logInfo.Println("gc monitor stopped")
+			l.Info("gc monitor stopped")
 			return
 		}
 	}

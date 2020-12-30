@@ -9,6 +9,7 @@ import (
 	"runtime"
 
 	"github.com/z0rr0/send/cfg"
+	"github.com/z0rr0/send/logging"
 )
 
 const (
@@ -27,12 +28,6 @@ var (
 	BuildDate = ""
 	// GoVersion is runtime Go language version
 	GoVersion = runtime.Version()
-
-	// internal loggers
-	loggerError = log.New(os.Stderr, fmt.Sprintf("ERROR [%v]: ", Name),
-		log.Ldate|log.Ltime|log.Lshortfile)
-	loggerInfo = log.New(os.Stdout, fmt.Sprintf("INFO [%v]: ", Name),
-		log.Ldate|log.Ltime|log.Lshortfile)
 )
 
 func versionInfo() string {
@@ -42,9 +37,18 @@ func versionInfo() string {
 }
 
 func main() {
+	logging.SetUp(Name, os.Stdout, os.Stderr, log.LstdFlags, log.Ldate|log.Ltime|log.Lshortfile)
+	logger, err := logging.New("main")
+	if err != nil {
+		if _, e := fmt.Fprintf(os.Stderr, "failed logging creation: %v\n", err); e != nil {
+			err = fmt.Errorf("failed logging creation: %w", err)
+			fmt.Printf("errors: %v / %v\n", err, e)
+		}
+		os.Exit(1)
+	}
 	defer func() {
 		if r := recover(); r != nil {
-			loggerError.Printf("abnormal termination [%v]: \n\t%v\n", Version, r)
+			logger.Info("abnormal termination [%v]: \n\t%v", Version, r)
 		}
 	}()
 	version := flag.Bool("version", false, "show version")
@@ -61,8 +65,8 @@ func main() {
 		panic(err)
 	}
 	defer func() {
-		if err := c.Close(); err != nil {
-			loggerError.Println(err)
+		if e := c.Close(); e != nil {
+			logger.Error("close cfg error: %v", e)
 		}
 	}()
 	timeout := c.Timeout()
@@ -72,7 +76,7 @@ func main() {
 		ReadTimeout:    timeout,
 		WriteTimeout:   timeout,
 		MaxHeaderBytes: c.MaxFileSize(),
-		ErrorLog:       loggerInfo,
+		ErrorLog:       logging.ErrorLog(),
 	}
-	loggerInfo.Printf("\n%v\nstorage: %v\nlisten addr: %v\n", info, c.Storage.Db, srv.Addr)
+	logger.Info("\n%v\nstorage: %v\nlisten addr: %v", info, c.Storage.Db, srv.Addr)
 }

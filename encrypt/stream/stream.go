@@ -1,5 +1,7 @@
 package stream
 
+// Package stream contains method to encrypt/decrypt io streams.
+
 import (
 	"crypto/aes"
 	"crypto/cipher"

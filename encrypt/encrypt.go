@@ -1,5 +1,7 @@
 package encrypt
 
+// Package encrypt contains methods to encrypt/decrypt texts and files.
+
 import (
 	"crypto/hmac"
 	"crypto/rand"

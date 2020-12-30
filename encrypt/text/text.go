@@ -1,5 +1,7 @@
 package text
 
+// Package text contains method to encrypt/decrypt text messages.
+
 import (
 	"crypto/aes"
 	"crypto/cipher"

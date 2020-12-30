@@ -124,23 +124,15 @@ func main() {
 	idleConnsClosed := make(chan struct{})
 	go func() {
 		sigint := make(chan os.Signal, 1)
-		done := make(chan struct{})
 		signal.Notify(sigint, os.Interrupt, os.Signal(syscall.SIGTERM), os.Signal(syscall.SIGQUIT))
 		<-sigint
 
 		ctx, cancel := context.WithTimeout(context.Background(), c.Shutdown())
 		defer cancel()
-		go func() {
-			defer close(done)
-			if e := srv.Shutdown(ctx); e != nil {
-				logger.Error("HTTP server Shutdown: %v", e)
-			}
-		}()
-		select {
-		case <-done:
+		if e := srv.Shutdown(ctx); e != nil {
+			logger.Error("HTTP server shutdown: %v", e)
+		} else {
 			logger.Info("HTTP server successfully stopped")
-		case <-ctx.Done():
-			logger.Error("shutdown timeout: %v", ctx.Err())
 		}
 		close(idleConnsClosed)
 		close(gcChan)

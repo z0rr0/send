@@ -7,12 +7,13 @@ import (
 )
 
 const (
-	// test config, defined in Makefile
+	// test config file name
 	cfgName = "test_send.toml"
 )
 
 var (
-	testConfig = filepath.Join(os.Getenv("TMPDIR"), cfgName)
+	// test config full path, defined in Makefile (env TMPDIR)
+	testConfig = filepath.Join(os.TempDir(), cfgName)
 )
 
 func TestNew(t *testing.T) {

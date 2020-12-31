@@ -91,10 +91,13 @@ func deleteByDate(db *sql.DB) (int64, error) {
 }
 
 // GCMonitor is garbage collection monitoring to delete expired by date or counter items.
-func GCMonitor(ch <-chan Item, closed chan struct{}, db *sql.DB, period time.Duration, l *logging.Log) {
+func GCMonitor(ch <-chan Item, shutdown, done chan struct{}, db *sql.DB, period time.Duration, l *logging.Log) {
 	ticker := time.NewTicker(period)
-	defer ticker.Stop()
-
+	defer func() {
+		ticker.Stop()
+		close(done)
+		l.Info("gc monitor stopped")
+	}()
 	l.Info("GC monitor is running, period=%v\n", period)
 	for {
 		select {
@@ -112,8 +115,7 @@ func GCMonitor(ch <-chan Item, closed chan struct{}, db *sql.DB, period time.Dur
 					l.Info("deleted %v expired items\n", n)
 				}
 			}
-		case <-closed:
-			l.Info("gc monitor stopped")
+		case <-shutdown:
 			return
 		}
 	}

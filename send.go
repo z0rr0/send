@@ -69,13 +69,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	gcChan := make(chan struct{})    // to close GC monitor
-	deleteChan := make(chan db.Item) // to delete items by after attempts expirations
+	delItem := make(chan db.Item) // to delete items by after attempts expirations
 	defer func() {
 		if e := c.Close(); e != nil {
 			logger.Error("close cfg error: %v", e)
 		}
-		close(deleteChan)
+		close(delItem)
 	}()
 	timeout := c.Timeout()
 	srv := &http.Server{
@@ -119,9 +118,11 @@ func main() {
 	})
 
 	// run GC monitoring
-	go db.GCMonitor(deleteChan, gcChan, c.Storage.Db, c.GCPeriod(), logger)
+	gcShutdown := make(chan struct{}) // to close GC monitor
+	gcStopped := make(chan struct{})  // to wait GC stopping
+	go db.GCMonitor(delItem, gcShutdown, gcStopped, c.Storage.Db, c.GCPeriod(), logger)
 
-	idleConnsClosed := make(chan struct{})
+	idleConnsClosed := make(chan struct{}) // to wait http server shutdown
 	go func() {
 		sigint := make(chan os.Signal, 1)
 		signal.Notify(sigint, os.Interrupt, os.Signal(syscall.SIGTERM), os.Signal(syscall.SIGQUIT))
@@ -135,12 +136,12 @@ func main() {
 			logger.Info("HTTP server successfully stopped")
 		}
 		close(idleConnsClosed)
-		close(gcChan)
+		close(gcShutdown)
 	}()
 	if e := srv.ListenAndServe(); e != http.ErrServerClosed {
 		logger.Error("HTTP server ListenAndServe: %v", e)
 	}
 	<-idleConnsClosed
-	<-gcChan
-	logger.Info("service stopped")
+	<-gcStopped
+	logger.Info("service %v stopped", Name)
 }

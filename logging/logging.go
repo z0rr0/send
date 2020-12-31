@@ -46,7 +46,8 @@ type Log struct {
 
 // vars adds Log.id in the begin of slice a.
 func (l *Log) vars(a []interface{}) []interface{} {
-	v := []interface{}{l.id}
+	var v = make([]interface{}, 1, len(a)+1)
+	v[0] = l.id
 	return append(v, a...)
 }
 

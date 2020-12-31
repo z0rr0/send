@@ -14,7 +14,9 @@ import (
 
 	"github.com/z0rr0/send/cfg"
 	"github.com/z0rr0/send/db"
+	"github.com/z0rr0/send/handle"
 	"github.com/z0rr0/send/logging"
+	"github.com/z0rr0/send/tpl"
 )
 
 const (
@@ -69,6 +71,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	templates, err := tpl.Load(c.Settings.Templates)
+	if err != nil {
+		panic(err)
+	}
 	delItem := make(chan db.Item) // to delete items by after attempts expirations
 	defer func() {
 		if e := c.Close(); e != nil {
@@ -86,12 +92,11 @@ func main() {
 		ErrorLog:       logging.ErrorLog(),
 	}
 	logger.Info("\n%v\n%s\nlisten addr: %v", info, c.Storage.String(), srv.Addr)
+	baseContext := tpl.Set(context.Background(), templates)
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		start, code := time.Now(), http.StatusOK
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-
-		ctx, e := logging.NewWithContext(ctx, "")
+		ctx, e := logging.NewWithContext(baseContext, "")
 		if e != nil {
 			logger.Error("init new logging context: %v", e)
 			http.Error(w, "internal error", http.StatusInternalServerError)
@@ -103,6 +108,7 @@ func main() {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		lg.Info("get new request")
 		defer func() {
 			lg.Info("%-5v %v\t%-12v\t%v",
 				r.Method,
@@ -111,10 +117,27 @@ func main() {
 				r.URL.String(),
 			)
 		}()
-		_, e = fmt.Fprintf(w, "%s\n", versionInfo())
+		e = handle.Main(ctx, w, r)
 		if e != nil {
-			lg.Error("failed: %v", e)
+			lg.Error("error: %v", e)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
 		}
+		//switch r.URL.Path {
+		//case "/version":
+		//	code, err = http.StatusOK, getVersion(w)
+		//case "/":
+		//	code, err = web.Index(w, r, cfg)
+		//case "/upload":
+		//	code, err = web.Upload(w, r, cfg)
+		//case "/u":
+		//	code, err = web.UploadShort(w, r, cfg)
+		//default:
+		//	code, err = web.Download(w, r, cfg)
+		//}
+		//if err != nil {
+		//	loggerError.Println(err)
+		//}
 	})
 
 	// run GC monitoring

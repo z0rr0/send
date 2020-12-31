@@ -5,13 +5,13 @@ package logging
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
+
+	"github.com/google/uuid"
 )
 
 // keyType is custom type for context key.
@@ -71,12 +71,8 @@ func (l *Log) Context(ctx context.Context) context.Context {
 // New creates new Log struct.
 func New(id string) (*Log, error) {
 	if id == "" {
-		b := make([]byte, lengthID)
-		_, err := rand.Read(b)
-		if err != nil {
-			return nil, err
-		}
-		id = hex.EncodeToString(b)
+		v := uuid.New()
+		id = v.String()
 	}
 	return &Log{id}, nil
 }

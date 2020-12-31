@@ -4,7 +4,6 @@ package cfg
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -36,12 +35,13 @@ func (s *storage) String() string {
 }
 
 type settings struct {
-	TTL      int    `toml:"ttl"`
-	Times    int    `toml:"times"`
-	Size     int    `toml:"size"`
-	Salt     string `toml:"salt"`
-	GC       int    `toml:"gc"`
-	Shutdown int    `toml:"shutdown"`
+	TTL       int    `toml:"ttl"`
+	Times     int    `toml:"times"`
+	Size      int    `toml:"size"`
+	Salt      string `toml:"salt"`
+	GC        int    `toml:"gc"`
+	Shutdown  int    `toml:"shutdown"`
+	Templates string `toml:"templates"`
 }
 
 // Config is a main configuration structure.
@@ -88,23 +88,21 @@ func (c *Config) Shutdown() time.Duration {
 
 // isValid checks the settings are valid.
 func (c *Config) isValid() error {
-	const userRead os.FileMode = 0600
-	fullPath, err := filepath.Abs(strings.Trim(c.Storage.Dir, " "))
+	const (
+		userReadWrite  os.FileMode = 0600
+		userReadSearch os.FileMode = 0500
+	)
+	fullPath, err := checkDirectory(c.Storage.Dir, userReadWrite)
 	if err != nil {
 		return err
-	}
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() {
-		return errors.New("storage is not a directory")
-	}
-	mode := info.Mode().Perm()
-	if mode&userRead != 0600 {
-		return fmt.Errorf("storage dir is not writable or readable, mode=%v", mode)
 	}
 	c.Storage.Dir = fullPath
+
+	fullPath, err = checkDirectory(c.Settings.Templates, userReadSearch)
+	if err != nil {
+		return err
+	}
+	c.Settings.Templates = fullPath
 
 	err = isGreaterThanZero(c.Server.Timeout, "server.timeout", err)
 	err = isGreaterThanZero(c.Server.Port, "server.port", err)
@@ -156,4 +154,23 @@ func isGreaterThanZero(x int, name string, err error) error {
 		return fmt.Errorf("%s=%d should be greater than 1", name, x)
 	}
 	return nil
+}
+
+// checkDirectory checks that dir exists and it is a directory with correct permissions.
+func checkDirectory(name string, mode os.FileMode) (string, error) {
+	fullPath, err := filepath.Abs(strings.Trim(name, " "))
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("fs object '%s' is not a directory", name)
+	}
+	if m := info.Mode().Perm(); m&mode != mode {
+		return "", fmt.Errorf("directory '%s' has failed permissions=%o, mode=%o", name, m, mode)
+	}
+	return fullPath, nil
 }

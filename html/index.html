@@ -2,9 +2,72 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="description" content="Send is a service to safe share your files and text messages.">
+    <meta name="author" content="Alexander Zaytsev <me@axv.email>">
+    <title>Send</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
 </head>
 <body>
+
+<div class="container">
+    <div class="row">
+        <div class="col">
+            Service Send
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <form method="POST" action="/upload" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <!--<label for="file" class="form-label">File</label>-->
+                    <input type="file" name="file" id="file" class="form-control" aria-describedby="fileHelp">
+                    <div id="fileHelp" class="form-text">maximum size {{.MaxSize}} Mb</div>
+                </div>
+                <div class="mb-3">
+                    <!--<label for="text" class="form-label">Text message</label>-->
+                    <textarea class="form-control" id="text" rows="2" placeholder="some text"
+                              aria-describedby="textHelp"></textarea>
+                    <div id="textHelp" class="form-text">file and text can not be empty together</div>
+                </div>
+                <div class="mb-3">
+                    <label for="times" class="form-label">Times</label>
+                    <input type="number" name="times" id="times" class="form-control" min="1" max="100" value="1"
+                           step="1" aria-describedby="timesHelp" required>
+                    <div id="timesHelp" class="form-text">how many times shared URL will be available</div>
+                </div>
+                <div class="mb-3">
+                    <label for="ttl" class="form-label">TTL</label>
+                    <select name="ttl" id="ttl" class="form-select" aria-describedby="ttlHelp" required>
+                        <option value='600'>10 minutes</option>
+                        <option value='3600'>hour</option>
+                        <option value='86400' selected>day</option>
+                        <option value='604800'>week</option>
+                    </select>
+                    <div id="ttlHelp" class="form-text">time to live - how long shared URL will be available</div>
+                </div>
+                <div class="mb-3">
+                    <!--<label for="password" class="form-label">Password</label>-->
+                    <input type="password" id="password" name="password" placeholder="secret" class="form-control"
+                           aria-describedby="passwordHelp">
+                    <div id="passwordHelp" class="form-text">
+                        your private secret key for data encryption (it will be not saved)
+                    </div>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="pwgen">
+                    <label class="form-check-label" for="pwgen">Create secret automatically</label>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit</button>
+            </form>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            (c) send
+        </div>
+    </div>
+</div>
 
 </body>
 </html>

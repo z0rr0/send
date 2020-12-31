@@ -28,7 +28,10 @@ prepare:
 	@cp doc/config.toml $(TEST_DIR)$(TEST_CONFIG)
 	@sed -i.b 's/"db.sqlite"/"$(ESCAPED_TEST_DIR)$(TEST_DB)"/' $(TEST_DIR)$(TEST_CONFIG)
 	@sed -i.b 's/"storage"/"$(ESCAPED_TEST_DIR)$(TEST_STORAGE)"/' $(TEST_DIR)$(TEST_CONFIG)
+	@sed -i.b 's/"html"/"$(ESCAPED_TEST_DIR)$(TEST_STORAGE)\/html"/' $(TEST_DIR)$(TEST_CONFIG)
+	@sed -i.b 's/"html\/static"/"$(ESCAPED_TEST_DIR)$(TEST_STORAGE)\/html\/static"/' $(TEST_DIR)$(TEST_CONFIG)
 	@mkdir $(TEST_DIR)$(TEST_STORAGE)
+	@cp -r html $(TEST_DIR)$(TEST_STORAGE)
 	@cat doc/schema.sql | sqlite3 $(TEST_DIR)$(TEST_DB)
 
 check_fmt:

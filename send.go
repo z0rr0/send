@@ -92,8 +92,11 @@ func main() {
 		ErrorLog:       logging.ErrorLog(),
 	}
 	logger.Info("\n%v\n%s\nlisten addr: %v", info, c.Storage.String(), srv.Addr)
-	baseContext := tpl.Set(context.Background(), templates)
+	baseContext := tpl.Set(c.Context(context.Background()), templates)
 
+	logger.Info("static=%v", c.Settings.Static)
+	fileServer := http.FileServer(http.Dir(c.Settings.Static))
+	http.Handle("/static/", http.StripPrefix("/static", fileServer))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		start, code := time.Now(), http.StatusOK
 		ctx, e := logging.NewWithContext(baseContext, "")

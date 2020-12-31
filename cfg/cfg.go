@@ -3,7 +3,9 @@ package cfg
 // Package cfg contains structures and functions for configurations reading and validation.
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -15,6 +17,15 @@ import (
 	_ "github.com/mattn/go-sqlite3" // SQLite3 driver package
 	"github.com/pelletier/go-toml"
 )
+
+// keyType is custom type for context key.
+type keyType uint8
+
+// key is context value key
+const key keyType = 1
+
+// ErrSettingsContext is error when context value was not found.
+var ErrSettingsContext = errors.New("not found settings context")
 
 type server struct {
 	Host    string `toml:"host"`
@@ -34,7 +45,8 @@ func (s *storage) String() string {
 	return fmt.Sprintf("database=%s, files=%s", s.File, s.Dir)
 }
 
-type settings struct {
+// Settings is base service settings.
+type Settings struct {
 	TTL       int    `toml:"ttl"`
 	Times     int    `toml:"times"`
 	Size      int    `toml:"size"`
@@ -42,13 +54,14 @@ type settings struct {
 	GC        int    `toml:"gc"`
 	Shutdown  int    `toml:"shutdown"`
 	Templates string `toml:"templates"`
+	Static    string `toml:"static"`
 }
 
 // Config is a main configuration structure.
 type Config struct {
 	Server   server   `toml:"server"`
 	Storage  storage  `toml:"storage"`
-	Settings settings `toml:"settings"`
+	Settings Settings `toml:"settings"`
 }
 
 // Addr returns service's net address.
@@ -86,7 +99,7 @@ func (c *Config) Shutdown() time.Duration {
 	return time.Duration(c.Settings.Shutdown) * time.Second
 }
 
-// isValid checks the settings are valid.
+// isValid checks the Settings are valid.
 func (c *Config) isValid() error {
 	const (
 		userReadWrite  os.FileMode = 0600
@@ -104,14 +117,34 @@ func (c *Config) isValid() error {
 	}
 	c.Settings.Templates = fullPath
 
+	fullPath, err = checkDirectory(c.Settings.Static, userReadSearch)
+	if err != nil {
+		return err
+	}
+	c.Settings.Static = fullPath
+
 	err = isGreaterThanZero(c.Server.Timeout, "server.timeout", err)
 	err = isGreaterThanZero(c.Server.Port, "server.port", err)
-	err = isGreaterThanZero(c.Settings.TTL, "settings.ttl", err)
-	err = isGreaterThanZero(c.Settings.Times, "settings.times", err)
-	err = isGreaterThanZero(c.Settings.Size, "settings.size", err)
-	err = isGreaterThanZero(c.Settings.GC, "settings.gc", err)
-	err = isGreaterThanZero(c.Settings.Shutdown, "settings.shutdown", err)
+	err = isGreaterThanZero(c.Settings.TTL, "Settings.ttl", err)
+	err = isGreaterThanZero(c.Settings.Times, "Settings.times", err)
+	err = isGreaterThanZero(c.Settings.Size, "Settings.size", err)
+	err = isGreaterThanZero(c.Settings.GC, "Settings.gc", err)
+	err = isGreaterThanZero(c.Settings.Shutdown, "Settings.shutdown", err)
 	return err
+}
+
+// Context adds *Settings params to context.
+func (c *Config) Context(ctx context.Context) context.Context {
+	return context.WithValue(ctx, key, &c.Settings)
+}
+
+// GetSettings returns *Settings value from context ctx.
+func GetSettings(ctx context.Context) (*Settings, error) {
+	v := ctx.Value(key)
+	if v == nil {
+		return nil, ErrSettingsContext
+	}
+	return v.(*Settings), nil
 }
 
 // New returns new configuration.

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/z0rr0/send/cfg"
 	"github.com/z0rr0/send/logging"
 	"github.com/z0rr0/send/tpl"
 )
@@ -23,7 +24,16 @@ func Main(ctx context.Context, w io.Writer, r *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("get template=%s: %w", tpl.Index, err)
 	}
-	err = t.Execute(w, nil)
+	settings, err := cfg.GetSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("get setings: %w", err)
+	}
+	data := struct {
+		MaxSize int
+	}{
+		settings.Size,
+	}
+	err = t.Execute(w, data)
 	if err != nil {
 		return fmt.Errorf("execute template=%s: %w", tpl.Index, err)
 	}
@@ -34,8 +44,4 @@ func Main(ctx context.Context, w io.Writer, r *http.Request) error {
 	//case "/version":
 	//default:
 	//}
-}
-
-func index(ctx context.Context, w io.Writer, r *http.Request) {
-
 }

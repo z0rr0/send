@@ -17,12 +17,8 @@ import (
 // keyType is custom type for context key.
 type keyType uint8
 
-const (
-	// lengthID is byte length of request id.
-	lengthID int = 16
-	// key is context value key
-	key keyType = 1
-)
+// key is context value key
+const key keyType = 1
 
 var (
 	// logError - error logger
@@ -71,8 +67,7 @@ func (l *Log) Context(ctx context.Context) context.Context {
 // New creates new Log struct.
 func New(id string) (*Log, error) {
 	if id == "" {
-		v := uuid.New()
-		id = v.String()
+		id = uuid.New().String()
 	}
 	return &Log{id}, nil
 }

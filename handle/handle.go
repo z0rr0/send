@@ -3,45 +3,69 @@ package handle
 // Package handle contains HTTP web/api handling methods.
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/z0rr0/send/cfg"
+	"github.com/z0rr0/send/db"
 	"github.com/z0rr0/send/logging"
 	"github.com/z0rr0/send/tpl"
 )
 
+// Params is a struct with common handling arguments.
+type Params struct {
+	Log       *logging.Log
+	Settings  *cfg.Settings
+	Request   *http.Request
+	Templates tpl.Templates
+	Version   *Version
+	DelItem   chan<- db.Item
+}
+
+// Version is application details info.
+type Version struct {
+	Version     string `json:"version"`
+	Revision    string `json:"revision"`
+	Build       string `json:"build"`
+	Environment string `json:"environment"`
+}
+
+// String returns a string representation of Version.
+func (v *Version) String() string {
+	return fmt.Sprintf("Version: %s\nRevision: %s\nBuild date: %s\nGo version: %s",
+		v.Version, v.Revision, v.Build, v.Environment,
+	)
+}
+
 // Main is a common HTTP handler.
-func Main(ctx context.Context, w io.Writer, r *http.Request) error {
-	logger, err := logging.Get(ctx)
-	if err != nil {
-		return err
+func Main(w io.Writer, p *Params) error {
+	var handler func(io.Writer, *Params) error
+
+	switch p.Request.URL.Path {
+	case "/":
+		handler = index
+	case "/api/version":
+		handler = version
+	default:
+		// download by hash
+		handler = index
 	}
-	logger.Info("get url=%v", r.URL.Path)
-	t, err := tpl.GetByName(ctx, tpl.Index)
-	if err != nil {
-		return fmt.Errorf("get template=%s: %w", tpl.Index, err)
-	}
-	settings, err := cfg.GetSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("get setings: %w", err)
-	}
+	return handler(w, p)
+}
+
+func index(w io.Writer, p *Params) error {
 	data := struct {
 		MaxSize int
-	}{
-		settings.Size,
+	}{MaxSize: p.Settings.Size}
+
+	t, ok := p.Templates[tpl.Index]
+	if !ok {
+		return fmt.Errorf("templage=%s not prepared", tpl.Index)
 	}
-	err = t.Execute(w, data)
+	err := t.Execute(w, data)
 	if err != nil {
 		return fmt.Errorf("execute template=%s: %w", tpl.Index, err)
 	}
 	return nil
-
-	//switch r.URL.Path {
-	//case "/":
-	//case "/version":
-	//default:
-	//}
 }

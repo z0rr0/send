@@ -12,6 +12,9 @@ import (
 // keyType is custom type for context key.
 type keyType uint8
 
+// Templates is alias for templates map.
+type Templates map[string]*template.Template
+
 // key is context value key
 const key keyType = 1
 
@@ -31,7 +34,7 @@ var (
 )
 
 // Load loads known templates to a map.
-func Load(folder string) (map[string]*template.Template, error) {
+func Load(folder string) (Templates, error) {
 	result := map[string]*template.Template{Index: nil, Error: nil, Upload: nil, Download: nil}
 	for name := range result {
 		fileName := filepath.Join(folder, name+".html")
@@ -45,17 +48,17 @@ func Load(folder string) (map[string]*template.Template, error) {
 }
 
 // Set adds a map of templates to context.
-func Set(ctx context.Context, templates map[string]*template.Template) context.Context {
+func Set(ctx context.Context, templates Templates) context.Context {
 	return context.WithValue(ctx, key, templates)
 }
 
 // Get returns a map of templates from context ctx.
-func Get(ctx context.Context) (map[string]*template.Template, error) {
+func Get(ctx context.Context) (Templates, error) {
 	v := ctx.Value(key)
 	if v == nil {
 		return nil, ErrTplContext
 	}
-	return v.(map[string]*template.Template), nil
+	return v.(Templates), nil
 }
 
 // GetByName returns a tpl by its name from the context ctx.

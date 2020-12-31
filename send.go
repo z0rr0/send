@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,10 +38,8 @@ var (
 	GoVersion = runtime.Version()
 )
 
-func versionInfo() string {
-	return fmt.Sprintf("%v\n\tVersion: %v\n\tRevision: %v\n\tBuild date: %v\n\tGo version: %v",
-		Name, Version, Revision, BuildDate, GoVersion,
-	)
+func versionInfo(ver *handle.Version) string {
+	return fmt.Sprintf("%s\n%s", Name, ver.String())
 }
 
 func main() {
@@ -62,7 +61,8 @@ func main() {
 	config := flag.String("config", Config, "configuration file")
 	flag.Parse()
 
-	info := versionInfo()
+	ver := &handle.Version{Version: Version, Revision: Revision, Build: BuildDate, Environment: GoVersion}
+	info := versionInfo(ver)
 	if *version {
 		fmt.Println(info)
 		return
@@ -92,57 +92,38 @@ func main() {
 		ErrorLog:       logging.ErrorLog(),
 	}
 	logger.Info("\n%v\n%s\nlisten addr: %v", info, c.Storage.String(), srv.Addr)
-	baseContext := tpl.Set(c.Context(context.Background()), templates)
-
 	logger.Info("static=%v", c.Settings.Static)
+
 	fileServer := http.FileServer(http.Dir(c.Settings.Static))
 	http.Handle("/static/", http.StripPrefix("/static", fileServer))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		start, code := time.Now(), http.StatusOK
-		ctx, e := logging.NewWithContext(baseContext, "")
+		lg, e := logging.New("")
 		if e != nil {
-			logger.Error("init new logging context: %v", e)
+			logger.Error("init logging context: %v", e)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		lg, e := logging.Get(ctx)
-		if e != nil {
-			logger.Error("read new logging context: %v", e)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		lg.Info("get new request")
+		lg.Info("income request")
 		defer func() {
-			lg.Info("%-5v %v\t%-12v\t%v",
-				r.Method,
-				code,
-				time.Since(start),
-				r.URL.String(),
-			)
+			lg.Info("%-5v %v\t%-12v\t%v", r.Method, code, time.Since(start), r.URL.String())
+			if code == http.StatusInternalServerError {
+				http.Error(w, "internal error", code)
+			}
 		}()
-		e = handle.Main(ctx, w, r)
+		params := &handle.Params{
+			Log: lg, Settings: &c.Settings, Request: r, Templates: templates, Version: ver, DelItem: delItem,
+		}
+		if strings.HasPrefix(r.URL.Path, "/api") {
+			w.Header().Add("Content-Type", "application/json")
+		}
+		e = handle.Main(w, params)
 		if e != nil {
 			lg.Error("error: %v", e)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			code = http.StatusInternalServerError
 			return
 		}
-		//switch r.URL.Path {
-		//case "/version":
-		//	code, err = http.StatusOK, getVersion(w)
-		//case "/":
-		//	code, err = web.Index(w, r, cfg)
-		//case "/upload":
-		//	code, err = web.Upload(w, r, cfg)
-		//case "/u":
-		//	code, err = web.UploadShort(w, r, cfg)
-		//default:
-		//	code, err = web.Download(w, r, cfg)
-		//}
-		//if err != nil {
-		//	loggerError.Println(err)
-		//}
 	})
-
 	// run GC monitoring
 	gcShutdown := make(chan struct{}) // to close GC monitor
 	gcStopped := make(chan struct{})  // to wait GC stopping

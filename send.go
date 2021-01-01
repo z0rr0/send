@@ -17,7 +17,6 @@ import (
 	"github.com/z0rr0/send/db"
 	"github.com/z0rr0/send/handle"
 	"github.com/z0rr0/send/logging"
-	"github.com/z0rr0/send/tpl"
 )
 
 const (
@@ -80,10 +79,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	templates, err := tpl.Load(c.Settings.Templates)
-	if err != nil {
-		panic(err)
-	}
 	delItem := make(chan db.Item) // to delete items after attempts expirations
 	defer func() {
 		if e := c.Close(); e != nil {
@@ -106,24 +101,21 @@ func main() {
 	http.Handle("/static/", http.StripPrefix("/static", fileServer))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		start, code := time.Now(), http.StatusOK
-		requestLogger := logging.New("")
-		requestLogger.Info("request\t%s", r.URL.String())
-		params := &handle.Params{
-			Log: requestLogger, Settings: &c.Settings, Request: r,
-			Templates: templates, Version: ver, DelItem: delItem,
-		}
+		reqLogger := logging.New("")
+		reqLogger.Info("request\t%s", r.URL.String())
+		params := &handle.Params{Log: reqLogger, Settings: &c.Settings, Request: r, Version: ver, DelItem: delItem}
 		defer func() {
 			if r := recover(); r != nil {
-				requestLogger.Error("request panic: %v", r)
+				reqLogger.Error("request panic: %v", r)
 				code = http.StatusInternalServerError
-				requestLogger.Error("stack:\n%v\n", string(debug.Stack()))
+				reqLogger.Error("stack:\n%v\n", string(debug.Stack()))
 			}
-			requestLogger.Info("%-5v %v\t%-12v\t%v", r.Method, code, time.Since(start), r.URL.String())
+			reqLogger.Info("%-5v %v\t%-12v\t%v", r.Method, code, time.Since(start), r.URL.String())
 			if code == http.StatusInternalServerError {
 				if params.IsAPI() {
 					w.WriteHeader(code)
 					if _, e := fmt.Fprint(w, "{\"error\": \"internal error\"}"); e != nil {
-						requestLogger.Error("failed error response: %v", e)
+						reqLogger.Error("failed error response: %v", e)
 					}
 				} else {
 					http.Error(w, "internal error", code)
@@ -135,7 +127,7 @@ func main() {
 		}
 		e := handle.Main(w, params)
 		if e != nil {
-			requestLogger.Error("error: %v", e)
+			reqLogger.Error("error: %v", e)
 			code = http.StatusInternalServerError
 			return
 		}

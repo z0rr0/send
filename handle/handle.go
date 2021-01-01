@@ -11,17 +11,15 @@ import (
 	"github.com/z0rr0/send/cfg"
 	"github.com/z0rr0/send/db"
 	"github.com/z0rr0/send/logging"
-	"github.com/z0rr0/send/tpl"
 )
 
 // Params is a struct with common handling arguments.
 type Params struct {
-	Log       *logging.Log
-	Settings  *cfg.Settings
-	Request   *http.Request
-	Templates tpl.Templates
-	Version   *Version
-	DelItem   chan<- db.Item
+	Log      *logging.Log
+	Settings *cfg.Settings
+	Request  *http.Request
+	Version  *Version
+	DelItem  chan<- db.Item
 }
 
 // IsAPI returns true if params are for API requests.
@@ -65,13 +63,9 @@ func index(w io.Writer, p *Params) error {
 		MaxSize int
 	}{MaxSize: p.Settings.Size}
 
-	t, ok := p.Templates[tpl.Index]
-	if !ok {
-		return fmt.Errorf("templage=%s not prepared", tpl.Index)
-	}
-	err := t.Execute(w, data)
+	err := p.Settings.Tpl.ExecuteTemplate(w, "index.html", data)
 	if err != nil {
-		return fmt.Errorf("execute template=%s: %w", tpl.Index, err)
+		return fmt.Errorf("failed execute template=index.html: %w", err)
 	}
 	return nil
 }

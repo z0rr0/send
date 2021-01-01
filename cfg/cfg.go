@@ -5,6 +5,7 @@ package cfg
 import (
 	"database/sql"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net"
 	"os"
@@ -36,14 +37,15 @@ func (s *storage) String() string {
 
 // Settings is base service settings.
 type Settings struct {
-	TTL       int    `toml:"ttl"`
-	Times     int    `toml:"times"`
-	Size      int    `toml:"size"`
-	Salt      string `toml:"salt"`
-	GC        int    `toml:"gc"`
-	Shutdown  int    `toml:"shutdown"`
-	Templates string `toml:"templates"`
-	Static    string `toml:"static"`
+	TTL       int                `toml:"ttl"`
+	Times     int                `toml:"times"`
+	Size      int                `toml:"size"`
+	Salt      string             `toml:"salt"`
+	GC        int                `toml:"gc"`
+	Shutdown  int                `toml:"shutdown"`
+	Templates string             `toml:"templates"`
+	Static    string             `toml:"static"`
+	Tpl       *template.Template `toml:"-"`
 }
 
 // Config is a main configuration structure.
@@ -94,17 +96,22 @@ func (c *Config) isValid() error {
 		userReadWrite  os.FileMode = 0600
 		userReadSearch os.FileMode = 0500
 	)
-	fullPath, err := checkDirectory(c.Storage.Dir, userReadWrite)
+	fullPath, err := checkDirectory(c.Settings.Templates, userReadSearch)
 	if err != nil {
 		return err
 	}
-	c.Storage.Dir = fullPath
-
-	fullPath, err = checkDirectory(c.Settings.Templates, userReadSearch)
+	tpl, err := template.ParseGlob(fullPath + "/*.html")
 	if err != nil {
 		return err
 	}
 	c.Settings.Templates = fullPath
+	c.Settings.Tpl = tpl
+
+	fullPath, err = checkDirectory(c.Storage.Dir, userReadWrite)
+	if err != nil {
+		return err
+	}
+	c.Storage.Dir = fullPath
 
 	fullPath, err = checkDirectory(c.Settings.Static, userReadSearch)
 	if err != nil {

@@ -18,3 +18,4 @@
 send
 db.sqlite
 ignore
+send.log

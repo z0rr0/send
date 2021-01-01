@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/z0rr0/send/cfg"
 	"github.com/z0rr0/send/db"
@@ -23,6 +24,11 @@ type Params struct {
 	DelItem   chan<- db.Item
 }
 
+// IsAPI returns true if params are for API requests.
+func (p *Params) IsAPI() bool {
+	return strings.HasPrefix(p.Request.URL.Path, "/api")
+}
+
 // Version is application details info.
 type Version struct {
 	Version     string `json:"version"`
@@ -31,7 +37,7 @@ type Version struct {
 	Environment string `json:"environment"`
 }
 
-// String returns a string representation of Version.
+// String returns a string representation of Version struct.
 func (v *Version) String() string {
 	return fmt.Sprintf("Version: %s\nRevision: %s\nBuild date: %s\nGo version: %s",
 		v.Version, v.Revision, v.Build, v.Environment,

@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -43,30 +42,39 @@ func versionInfo(ver *handle.Version) string {
 }
 
 func main() {
-	logging.SetUp(Name, os.Stdout, os.Stderr, log.LstdFlags, log.Ldate|log.Ltime|log.Lshortfile)
-	logger, err := logging.New("main")
-	if err != nil {
-		if _, e := fmt.Fprintf(os.Stderr, "failed logging creation: %v\n", err); e != nil {
-			err = fmt.Errorf("failed logging creation: %w", err)
-			fmt.Printf("errors: %v / %v\n", err, e)
-		}
-		os.Exit(1)
-	}
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Info("abnormal termination [%v]: \n\t%v", Version, r)
+			logging.ErrorLog().Printf("abnormal termination [%v]: \n\t%v", Version, r)
 		}
 	}()
 	version := flag.Bool("version", false, "show version")
 	config := flag.String("config", Config, "configuration file")
+	logFile := flag.String("log", "", "log file name (default stdout)")
 	flag.Parse()
 
 	ver := &handle.Version{Version: Version, Revision: Revision, Build: BuildDate, Environment: GoVersion}
 	info := versionInfo(ver)
 	if *version {
+		// show oly version
 		fmt.Println(info)
 		return
 	}
+	// configure custom logging
+	if fileName := *logFile; fileName == "" {
+		logging.SetUp(Name, os.Stdout, os.Stderr, log.LstdFlags, log.Ldate|log.Ltime|log.Lshortfile)
+	} else {
+		logFileFd, err := logging.SetUpFile(Name, fileName, log.LstdFlags, log.Ldate|log.Ltime|log.Lshortfile)
+		if err != nil {
+			panic(err)
+		}
+		defer func() {
+			if e := logFileFd.Close(); e != nil {
+				logging.ErrorLog().Printf("close log file: %v", e)
+			}
+		}()
+	}
+	logger := logging.New("main")
+	// read config and check html templates
 	c, err := cfg.New(*config)
 	if err != nil {
 		panic(err)
@@ -75,12 +83,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	delItem := make(chan db.Item) // to delete items by after attempts expirations
+	delItem := make(chan db.Item) // to delete items after attempts expirations
 	defer func() {
 		if e := c.Close(); e != nil {
 			logger.Error("close cfg error: %v", e)
 		}
-		close(delItem)
 	}()
 	timeout := c.Timeout()
 	srv := &http.Server{
@@ -98,28 +105,24 @@ func main() {
 	http.Handle("/static/", http.StripPrefix("/static", fileServer))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		start, code := time.Now(), http.StatusOK
-		lg, e := logging.New("")
-		if e != nil {
-			logger.Error("init logging context: %v", e)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
+		requestLogger := logging.New("")
+		requestLogger.Info("request\t%s", r.URL.String())
+		params := &handle.Params{
+			Log: requestLogger, Settings: &c.Settings, Request: r,
+			Templates: templates, Version: ver, DelItem: delItem,
 		}
-		lg.Info("income request")
 		defer func() {
-			lg.Info("%-5v %v\t%-12v\t%v", r.Method, code, time.Since(start), r.URL.String())
+			requestLogger.Info("%-5v %v\t%-12v\t%v", r.Method, code, time.Since(start), r.URL.String())
 			if code == http.StatusInternalServerError {
 				http.Error(w, "internal error", code)
 			}
 		}()
-		params := &handle.Params{
-			Log: lg, Settings: &c.Settings, Request: r, Templates: templates, Version: ver, DelItem: delItem,
-		}
-		if strings.HasPrefix(r.URL.Path, "/api") {
+		if params.IsAPI() {
 			w.Header().Add("Content-Type", "application/json")
 		}
-		e = handle.Main(w, params)
+		e := handle.Main(w, params)
 		if e != nil {
-			lg.Error("error: %v", e)
+			requestLogger.Error("error: %v", e)
 			code = http.StatusInternalServerError
 			return
 		}
@@ -150,5 +153,6 @@ func main() {
 	}
 	<-idleConnsClosed
 	<-gcStopped
+	close(delItem)
 	logger.Info("service %v stopped", Name)
 }

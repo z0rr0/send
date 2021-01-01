@@ -1,10 +1,12 @@
 package logging
 
 import (
+	"bufio"
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -39,6 +41,51 @@ func TestSetUp(t *testing.T) {
 	}
 }
 
+func TestSetUpFile(t *testing.T) {
+	fileName := filepath.Join(os.TempDir(), "send_logging_test.log")
+	f, err := SetUpFile("test", fileName, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logInfo.Printf("test / %s", "info")
+	logError.Printf("test / %s", "error")
+
+	err = f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fr, err := os.Open(fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []struct {
+		prefix string
+		suffix string
+	}{
+		{"INFO [test]", "test / info"},
+		{"ERROR [test]", "test / error"},
+	}
+	scanner := bufio.NewScanner(fr)
+	i := 0
+	for scanner.Scan() {
+		logLine, exp := scanner.Text(), expected[i]
+		if e := checkLogMsg(logLine, exp.prefix, exp.suffix); e != nil {
+			t.Errorf("failed value [%v]: %v", e, logLine)
+		}
+
+		i++
+	}
+	err = scanner.Err()
+	if err != nil {
+		t.Error(err)
+	}
+	err = os.Remove(fileName)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestErrorLog(t *testing.T) {
 	var (
 		i, e      bytes.Buffer
@@ -56,10 +103,7 @@ func TestErrorLog(t *testing.T) {
 func TestNew(t *testing.T) {
 	var i, e bytes.Buffer
 	SetUp("test", &i, &e, 0, 0)
-	l, err := New("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	l := New("")
 	l.Info("info=%s", "testMsg")
 	expected := fmt.Sprintf("INFO [test] [%s] info=testMsg\n", l.id)
 	if v := i.String(); v != expected {
@@ -70,30 +114,5 @@ func TestNew(t *testing.T) {
 	expected = fmt.Sprintf("ERROR [test] [%s] error=testErrMsg\n", l.id)
 	if v := e.String(); v != expected {
 		t.Errorf("failed error logger message=%v", v)
-	}
-}
-
-func TestNewWithContext(t *testing.T) {
-	var (
-		i, e bytes.Buffer
-		ctx  = context.Background()
-	)
-	SetUp("test", &i, &e, 0, 0)
-	_, err := Get(ctx)
-	if !errors.Is(err, ErrLogContext) {
-		t.Fatal("unexpected context value")
-	}
-	logCtx, err := NewWithContext(ctx, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	l, err := Get(logCtx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	l.Info("info=%s", "testMsg")
-	expected := fmt.Sprintf("INFO [test] [%s] info=testMsg\n", l.id)
-	if v := i.String(); v != expected {
-		t.Errorf("failed info logger message=%v", v)
 	}
 }

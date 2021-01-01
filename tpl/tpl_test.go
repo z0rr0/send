@@ -1,7 +1,6 @@
 package tpl
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,45 +36,5 @@ func TestLoad(t *testing.T) {
 		if value == nil {
 			t.Errorf("nil template=%s value", name)
 		}
-	}
-}
-
-func TestGet(t *testing.T) {
-	templates, err := Load(htmlFolder)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := Set(context.Background(), templates)
-	newTemplates, err := Get(ctx)
-	if err != nil {
-		t.Error(err)
-	}
-	for name, oldTemplate := range templates {
-		if newTemplate := newTemplates[name]; oldTemplate != newTemplate {
-			t.Errorf("failed template=%s", name)
-		}
-	}
-}
-
-func TestGetByName(t *testing.T) {
-	templates, err := Load(htmlFolder)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = GetByName(context.Background(), Index)
-	if err == nil {
-		t.Error("unexpected success")
-	}
-	ctx := Set(context.Background(), templates)
-	_, err = GetByName(ctx, "bad")
-	if err == nil {
-		t.Error("unexpected success")
-	}
-	tp, err := GetByName(ctx, Index)
-	if err != nil {
-		t.Error(err)
-	}
-	if tp != templates[Index] {
-		t.Error("failed index template")
 	}
 }

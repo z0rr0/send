@@ -3,9 +3,7 @@ package cfg
 // Package cfg contains structures and functions for configurations reading and validation.
 
 import (
-	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -17,15 +15,6 @@ import (
 	_ "github.com/mattn/go-sqlite3" // SQLite3 driver package
 	"github.com/pelletier/go-toml"
 )
-
-// keyType is custom type for context key.
-type keyType uint8
-
-// key is context value key
-const key keyType = 1
-
-// ErrSettingsContext is error when context value was not found.
-var ErrSettingsContext = errors.New("not found settings context")
 
 type server struct {
 	Host    string `toml:"host"`
@@ -76,7 +65,7 @@ func (c *Config) Close() error {
 
 // Timeout is service timeout.
 func (c *Config) Timeout() time.Duration {
-	return time.Duration(c.Settings.TTL) * time.Second
+	return time.Duration(c.Server.Timeout) * time.Second
 }
 
 // GCPeriod is gc period in seconds.
@@ -131,20 +120,6 @@ func (c *Config) isValid() error {
 	err = isGreaterThanZero(c.Settings.GC, "Settings.gc", err)
 	err = isGreaterThanZero(c.Settings.Shutdown, "Settings.shutdown", err)
 	return err
-}
-
-// Context adds *Settings params to context.
-func (c *Config) Context(ctx context.Context) context.Context {
-	return context.WithValue(ctx, key, &c.Settings)
-}
-
-// GetSettings returns *Settings value from context ctx.
-func GetSettings(ctx context.Context) (*Settings, error) {
-	v := ctx.Value(key)
-	if v == nil {
-		return nil, ErrSettingsContext
-	}
-	return v.(*Settings), nil
 }
 
 // New returns new configuration.

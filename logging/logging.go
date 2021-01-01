@@ -4,8 +4,6 @@ package logging
 // It supports request ID generation and context value saving.
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,25 +12,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// keyType is custom type for context key.
-type keyType uint8
-
-// key is context value key
-const key keyType = 1
-
 var (
 	// logError - error logger
 	logError = log.New(os.Stderr, "ERROR", log.Ldate|log.Ltime|log.Lshortfile)
 	// logInfo - info logger.
 	logInfo = log.New(os.Stdout, "INFO", log.LstdFlags)
-	// ErrLogContext is error when context value was not found.
-	ErrLogContext = errors.New("not found log context")
 )
 
 // SetUp overwrites default loggers with custom app name and writers.
 func SetUp(name string, i, e io.Writer, iFlag, eFlag int) {
 	logInfo = log.New(i, fmt.Sprintf("INFO [%s] ", name), iFlag)
 	logError = log.New(e, fmt.Sprintf("ERROR [%s] ", name), eFlag)
+}
+
+// SetUpFile overwrites default logger with custom one and does output to the fileName.
+func SetUpFile(name, fileName string, iFlag, eFlag int) (*os.File, error) {
+	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	if err != nil {
+		return nil, err
+	}
+	logInfo = log.New(f, fmt.Sprintf("INFO [%s] ", name), iFlag)
+	logError = log.New(f, fmt.Sprintf("ERROR [%s] ", name), eFlag)
+	return f, nil
 }
 
 // Log is logger storage for request id and related methods..
@@ -59,35 +60,12 @@ func (l *Log) Error(format string, a ...interface{}) {
 	logError.Printf(f, v...)
 }
 
-// Context extends parent context by value with logger l.
-func (l *Log) Context(ctx context.Context) context.Context {
-	return context.WithValue(ctx, key, l)
-}
-
 // New creates new Log struct.
-func New(id string) (*Log, error) {
+func New(id string) *Log {
 	if id == "" {
 		id = uuid.New().String()
 	}
-	return &Log{id}, nil
-}
-
-// NewWithContext creates new Log struct and includes its value to the ctx.
-func NewWithContext(ctx context.Context, id string) (context.Context, error) {
-	l, err := New(id)
-	if err != nil {
-		return nil, err
-	}
-	return l.Context(ctx), nil
-}
-
-// Get returns *Log value from context ctx.
-func Get(ctx context.Context) (*Log, error) {
-	v := ctx.Value(key)
-	if v == nil {
-		return nil, ErrLogContext
-	}
-	return v.(*Log), nil
+	return &Log{id}
 }
 
 // ErrorLog returns internal error logger.

@@ -11,6 +11,7 @@ PIDFILE=$(TEST_DIR).$(TARGET).pid
 PWD=$(shell pwd)
 # use custom environment env SENDCFG for config
 RUN_CFG=$(shell if test -f "$(SENDCFG)"; then echo $(SENDCFG); else echo "doc/config.toml"; fi)
+LOG_FILE=$(PWD)/send.log
 # test configuration
 TEST_CONFIG=test_$(TARGET).toml
 TEST_DB=test_$(TARGET).sqlite
@@ -48,6 +49,8 @@ lint: check_fmt
 
 test: lint prepare
 	go test -race -v -cover $(PWD)/...
+	# go test -race -v -cover -coverprofile=coverage.out -trace trace.out <PACKAGE>
+	# go tool cover -html=coverage.out
 
 test_nocache: lint prepare
 	go test -count=1 -race -v -cover $(PWD)/...
@@ -66,7 +69,7 @@ clean:
 start: build
 	@test ! -f $(PIDFILE) || { echo "ERROR: pid file already exists $(PIDFILE)"; false; }
 	@-echo ">>> starting $(TARGET)"
-	@$(PWD)/$(TARGET) -config $(RUN_CFG) & echo $$! > $(PIDFILE)
+	@$(PWD)/$(TARGET) -config $(RUN_CFG) -log $(LOG_FILE) & echo $$! > $(PIDFILE)
 	@-cat $(PIDFILE)
 #	@-grep -A 2 "server" $(RUN_CFG)
 

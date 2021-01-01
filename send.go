@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -44,7 +45,7 @@ func versionInfo(ver *handle.Version) string {
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.ErrorLog().Printf("abnormal termination [%v]: \n\t%v", Version, r)
+			logging.ErrorLog().Printf("abnormal termination [%v]: %v\n%v", Version, r, string(debug.Stack()))
 		}
 	}()
 	version := flag.Bool("version", false, "show version")
@@ -112,9 +113,21 @@ func main() {
 			Templates: templates, Version: ver, DelItem: delItem,
 		}
 		defer func() {
+			if r := recover(); r != nil {
+				requestLogger.Error("request panic: %v", r)
+				code = http.StatusInternalServerError
+				requestLogger.Error("stack:\n%v\n", string(debug.Stack()))
+			}
 			requestLogger.Info("%-5v %v\t%-12v\t%v", r.Method, code, time.Since(start), r.URL.String())
 			if code == http.StatusInternalServerError {
-				http.Error(w, "internal error", code)
+				if params.IsAPI() {
+					w.WriteHeader(code)
+					if _, e := fmt.Fprint(w, "{\"error\": \"internal error\"}"); e != nil {
+						requestLogger.Error("failed error response: %v", e)
+					}
+				} else {
+					http.Error(w, "internal error", code)
+				}
 			}
 		}()
 		if params.IsAPI() {

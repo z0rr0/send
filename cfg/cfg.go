@@ -17,6 +17,12 @@ import (
 	"github.com/pelletier/go-toml"
 )
 
+// html templates names
+const (
+	Index  = "index"
+	Upload = "upload"
+)
+
 type server struct {
 	Host    string `toml:"host"`
 	Port    int    `toml:"port"`
@@ -195,4 +201,19 @@ func checkDirectory(name string, mode os.FileMode) (string, error) {
 		return "", fmt.Errorf("directory '%s' has failed permissions=%o, mode=%o", name, m, mode)
 	}
 	return fullPath, nil
+}
+
+// parseTemplates parses expected templates files.
+func parseTemplates(fullPath string) (map[string]*template.Template, error) {
+	base := filepath.Join(fullPath, "base.html")
+	index, err := template.ParseFiles(base, filepath.Join(fullPath, "index.html"))
+	if err != nil {
+		return nil, err
+	}
+
+	upload, err := template.ParseFiles(base, filepath.Join(fullPath, "upload.html"))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]*template.Template{Index: index, Upload: upload}, nil
 }

@@ -88,21 +88,40 @@ func Random(n int) ([]byte, error) {
 	return result, nil
 }
 
-// createFile creates a new file with Random name inside base path.
-func createFile(base string) (*os.File, error) {
-	for i := 0; i < fileCreateAttempts; i++ {
-		value, err := Random(fileNameSize)
-		if err != nil {
-			return nil, fmt.Errorf("Random file name: %w", err)
+// createFile creates a new file with name or Random value (if name is empty) inside base path.
+func createFile(base, name string) (*os.File, error) {
+	var (
+		attempts = fileCreateAttempts
+		err      error
+	)
+	genName := func() (string, error) {
+		value, e := Random(fileNameSize)
+		if e != nil {
+			return "", fmt.Errorf("random file name: %w", e)
 		}
-		fullPath := filepath.Join(base, hex.EncodeToString(value))
-		f, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		return hex.EncodeToString(value), nil
+	}
+	if name == "" {
+		name, err = genName()
 		if err != nil {
-			if !os.IsExist(err) {
+			return nil, err
+		}
+	} else {
+		attempts = 1
+	}
+	for i := 0; i < attempts; i++ {
+		fullPath := filepath.Join(base, name)
+		f, e := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if e != nil {
+			if !os.IsExist(e) {
 				// unexpected error
-				return nil, fmt.Errorf("Random file creation: %w", err)
+				return nil, fmt.Errorf("random file creation: %w", e)
 			}
 			// do new attempt
+			name, err = genName()
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			return f, nil
 		}
@@ -170,12 +189,12 @@ func DecryptText(secret string, m *Msg) (string, error) {
 // File encrypts content from src to a new file using the secret.
 // Salt and key hash are returned as Msg.Salt and Msg.Hash.
 // The name if new file will be stored in m.Value.
-func File(secret string, src io.Reader, base string) (*Msg, error) {
+func File(secret string, src io.Reader, base, name string) (*Msg, error) {
 	salt, err := Salt()
 	if err != nil {
 		return nil, err
 	}
-	dst, err := createFile(base)
+	dst, err := createFile(base, name)
 	if err != nil {
 		return nil, fmt.Errorf("open file for ecryption: %w", err)
 	}

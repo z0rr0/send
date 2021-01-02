@@ -119,7 +119,7 @@ func (item *Item) encryptFile(secret string, src io.Reader, e error) error {
 	if src == nil {
 		return errors.New("not file for encryption")
 	}
-	m, err := encrypt.File(secret, src, item.Storage)
+	m, err := encrypt.File(secret, src, item.Storage, item.Key)
 	if err != nil {
 		return err
 	}

@@ -42,7 +42,7 @@ func TestFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := os.TempDir()
-	m1, err := File(secret, &src, base)
+	m1, err := File(secret, &src, base, "")
 	if err != nil {
 		t.Fatal(err)
 	}

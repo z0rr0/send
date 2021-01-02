@@ -3,8 +3,9 @@ package handle
 // Package handle contains HTTP web/api handling methods.
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -16,10 +17,12 @@ import (
 // Params is a struct with common handling arguments.
 type Params struct {
 	Log      *logging.Log
+	DB       *sql.DB
 	Settings *cfg.Settings
 	Request  *http.Request
 	Version  *Version
 	DelItem  chan<- db.Item
+	Storage  string
 }
 
 // IsAPI returns true if params are for API requests.
@@ -42,30 +45,42 @@ func (v *Version) String() string {
 	)
 }
 
+// IndexData is index page data.
+type IndexData struct {
+	MaxSize int
+	Error   string
+}
+
+// HasError returns true if there is an error message.
+func (iData *IndexData) HasError() bool {
+	return iData.Error != ""
+}
+
 // Main is a common HTTP handler.
-func Main(w io.Writer, p *Params) error {
-	var handler func(io.Writer, *Params) error
+func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
+	var handler func(context.Context, http.ResponseWriter, *Params) error
 
 	switch p.Request.URL.Path {
 	case "/":
 		handler = index
+	case "/upload":
+		handler = upload
 	case "/api/version":
 		handler = version
 	default:
 		// download by hash
 		handler = index
 	}
-	return handler(w, p)
+	return handler(ctx, w, p)
 }
 
-func index(w io.Writer, p *Params) error {
-	data := struct {
-		MaxSize int
-	}{MaxSize: p.Settings.Size}
-
-	err := p.Settings.Tpl.ExecuteTemplate(w, "index.html", data)
+// index is a title web page.
+func index(_ context.Context, w http.ResponseWriter, p *Params) error {
+	const tplName = "index.html"
+	data := &IndexData{MaxSize: p.Settings.Size}
+	err := p.Settings.Tpl.ExecuteTemplate(w, tplName, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=index.html: %w", err)
+		return fmt.Errorf("failed execute template=%s: %w", tplName, err)
 	}
 	return nil
 }

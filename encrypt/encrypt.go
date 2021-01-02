@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// saltSize is random of salt.
+	// saltSize is Random of salt.
 	saltSize = 128
 	// fileNameSize is used for storage file name.
 	fileNameSize = 64
@@ -78,8 +78,8 @@ func (m *Msg) decode(withValue bool) error {
 	return nil
 }
 
-// random returns n-random bytes.
-func random(n int) ([]byte, error) {
+// Random returns n-Random bytes.
+func Random(n int) ([]byte, error) {
 	result := make([]byte, n)
 	_, err := rand.Read(result)
 	if err != nil {
@@ -88,19 +88,19 @@ func random(n int) ([]byte, error) {
 	return result, nil
 }
 
-// createFile creates a new file with random name inside base path.
+// createFile creates a new file with Random name inside base path.
 func createFile(base string) (*os.File, error) {
 	for i := 0; i < fileCreateAttempts; i++ {
-		value, err := random(fileNameSize)
+		value, err := Random(fileNameSize)
 		if err != nil {
-			return nil, fmt.Errorf("random file name: %w", err)
+			return nil, fmt.Errorf("Random file name: %w", err)
 		}
 		fullPath := filepath.Join(base, hex.EncodeToString(value))
 		f, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 		if err != nil {
 			if !os.IsExist(err) {
 				// unexpected error
-				return nil, fmt.Errorf("random file creation: %w", err)
+				return nil, fmt.Errorf("Random file creation: %w", err)
 			}
 			// do new attempt
 		} else {
@@ -110,9 +110,9 @@ func createFile(base string) (*os.File, error) {
 	return nil, fmt.Errorf("can not create new file after %d attempts", fileCreateAttempts)
 }
 
-// Salt returns random bytes.
+// Salt returns Random bytes.
 func Salt() ([]byte, error) {
-	salt, err := random(saltSize)
+	salt, err := Random(saltSize)
 	if err != nil {
 		return nil, fmt.Errorf("read rand: %w", err)
 	}

@@ -103,7 +103,11 @@ func main() {
 		start, code := time.Now(), http.StatusOK
 		reqLogger := logging.New("")
 		reqLogger.Info("request\t%s", r.URL.String())
-		params := &handle.Params{Log: reqLogger, Settings: &c.Settings, Request: r, Version: ver, DelItem: delItem}
+		params := &handle.Params{
+			Log: reqLogger, DB: c.Storage.Db, Settings: &c.Settings,
+			Request: r, Version: ver, DelItem: delItem, Storage: c.Storage.Dir,
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer func() {
 			if r := recover(); r != nil {
 				reqLogger.Error("request panic: %v", r)
@@ -121,11 +125,12 @@ func main() {
 					http.Error(w, "internal error", code)
 				}
 			}
+			cancel()
 		}()
 		if params.IsAPI() {
 			w.Header().Add("Content-Type", "application/json")
 		}
-		e := handle.Main(w, params)
+		e := handle.Main(ctx, w, params)
 		if e != nil {
 			reqLogger.Error("error: %v", e)
 			code = http.StatusInternalServerError
@@ -135,7 +140,7 @@ func main() {
 	// run GC monitoring
 	gcShutdown := make(chan struct{}) // to close GC monitor
 	gcStopped := make(chan struct{})  // to wait GC stopping
-	go db.GCMonitor(delItem, gcShutdown, gcStopped, c.Storage.Db, c.GCPeriod(), logger)
+	go db.GCMonitor(delItem, gcShutdown, gcStopped, c.Storage.Db, c.GCPeriod(), c.DbPeriod(), logger)
 
 	idleConnsClosed := make(chan struct{}) // to wait http server shutdown
 	go func() {

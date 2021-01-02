@@ -1,12 +1,13 @@
 package handle
 
 import (
+	"context"
 	"encoding/json"
-	"io"
+	"net/http"
 )
 
 // version is API handler for version info.
-func version(w io.Writer, p *Params) error {
+func version(_ context.Context, w http.ResponseWriter, p *Params) error {
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(p.Version)
 }

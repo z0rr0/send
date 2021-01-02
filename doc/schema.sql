@@ -18,11 +18,11 @@ CREATE TABLE IF NOT EXISTS `storage`
     `expired`    DATETIME     NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS `key` ON `storage` (`key`);
-CREATE INDEX IF NOT EXISTS `expired` ON `storage` (`expired`);
+CREATE INDEX IF NOT EXISTS `expired` ON `storage` (`expired`,`count_text`,`count_file`);
 
 /*
 id - unique identifier
-key - random unique identifier (url part)
+key - random unique identifier (url part - request UUID)
 text - encrypted text message
 file_path - relative path to an encrypted file
 file_name - encrypted file name

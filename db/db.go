@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -8,7 +9,7 @@ import (
 	"github.com/z0rr0/send/logging"
 )
 
-// InTransaction runs method f inside a database transaction and does commit or rollback.
+// InTransaction runs method `f` inside the database transaction and does commit or rollback.
 func InTransaction(db *sql.DB, f func(tx *sql.Tx) error) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -31,9 +32,9 @@ func InTransaction(db *sql.DB, f func(tx *sql.Tx) error) error {
 }
 
 // expired returns already expired items for now timestamp.
-func expired(tx *sql.Tx) ([]*Item, error) {
+func expired(ctx context.Context, tx *sql.Tx) ([]*Item, error) {
 	var items []*Item
-	stmt, err := tx.Prepare("SELECT `id`, `path`, `hash` FROM `storage` WHERE `expired`<?;")
+	stmt, err := tx.PrepareContext(ctx, "SELECT `id`, `file_path` FROM `storage` WHERE `expired`<?;")
 	if err != nil {
 		return nil, fmt.Errorf("prepare select expired query: %w", err)
 	}
@@ -43,7 +44,7 @@ func expired(tx *sql.Tx) ([]*Item, error) {
 	}
 	for rows.Next() {
 		item := &Item{}
-		err = rows.Scan(&item.ID, &item.Path, &item.Hash)
+		err = rows.Scan(&item.ID, &item.FilePath)
 		if err != nil {
 			return nil, fmt.Errorf("next select expired query: %w", err)
 		}
@@ -57,9 +58,9 @@ func expired(tx *sql.Tx) ([]*Item, error) {
 }
 
 // deleteItems removes items by their identifiers.
-func deleteItems(tx *sql.Tx, items ...*Item) (int64, error) {
+func deleteItems(ctx context.Context, tx *sql.Tx, items ...*Item) (int64, error) {
 	// statement will be closed when the transaction has been committed or rolled back
-	stmt, err := tx.Prepare("DELETE FROM `storage` WHERE `id` IN (?);")
+	stmt, err := tx.PrepareContext(ctx, "DELETE FROM `storage` WHERE `id` IN (?);")
 	if err != nil {
 		return 0, fmt.Errorf("can not prepare deleteItems transaction: %w", err)
 	}
@@ -71,14 +72,14 @@ func deleteItems(tx *sql.Tx, items ...*Item) (int64, error) {
 }
 
 // deleteByDate removes expired items.
-func deleteByDate(db *sql.DB) (int64, error) {
+func deleteByDate(ctx context.Context, db *sql.DB) (int64, error) {
 	var n int64
 	var txErr = InTransaction(db, func(tx *sql.Tx) error {
-		items, err := expired(tx)
+		items, err := expired(ctx, tx)
 		if err != nil {
 			return err
 		}
-		n, err = deleteItems(tx, items...)
+		n, err = deleteItems(ctx, tx, items...)
 		if err != nil {
 			return err
 		}
@@ -91,30 +92,38 @@ func deleteByDate(db *sql.DB) (int64, error) {
 }
 
 // GCMonitor is garbage collection monitoring to delete expired by date or counter items.
-func GCMonitor(ch <-chan Item, shutdown, done chan struct{}, db *sql.DB, period time.Duration, l *logging.Log) {
-	ticker := time.NewTicker(period)
+func GCMonitor(ch <-chan Item, shutdown, done chan struct{}, db *sql.DB, tickT, dbT time.Duration, l *logging.Log) {
+	var (
+		cancel context.CancelFunc
+		ctx    context.Context
+		ticker = time.NewTicker(tickT)
+	)
 	defer func() {
 		ticker.Stop()
 		close(done)
 		l.Info("gc monitor stopped")
 	}()
-	l.Info("GC monitor is running, period=%v\n", period)
+	l.Info("GC monitor is running, period=%v\n", tickT)
 	for {
 		select {
 		case item := <-ch:
-			if err := item.Delete(db); err != nil {
+			ctx, cancel = context.WithTimeout(context.Background(), dbT)
+			if err := item.Delete(ctx, db); err != nil {
 				l.Error("failed deleteItems item: %v\n", err)
 			} else {
 				l.Info("deleted item=%v\n", item.ID)
 			}
+			cancel()
 		case <-ticker.C:
-			if n, err := deleteByDate(db); err != nil {
+			ctx, cancel = context.WithTimeout(context.Background(), dbT)
+			if n, err := deleteByDate(ctx, db); err != nil {
 				l.Error("failed deleteItems items by date: %v\n", err)
 			} else {
 				if n > 0 {
 					l.Info("deleted %v expired items\n", n)
 				}
 			}
+			cancel()
 		case <-shutdown:
 			return
 		}

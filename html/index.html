@@ -1,5 +1,11 @@
 {{template "base" .}}
 {{define "content"}}
+
+{{if .HasError }}
+<div class="alert alert-danger" role="alert">{{.Error}}</div>
+{{else}}
+{{end}}
+
 <form method="POST" action="/upload" enctype="multipart/form-data">
     <div class="mb-3">
         <!--<label for="file" class="form-label">File</label>-->
@@ -8,7 +14,7 @@
     </div>
     <div class="mb-3">
         <!--<label for="text" class="form-label">Text message</label>-->
-        <textarea class="form-control" id="text" rows="2" placeholder="some text"
+        <textarea class="form-control" name="text" id="text" rows="2" placeholder="some text"
                   aria-describedby="textHelp"></textarea>
         <div id="textHelp" class="form-text">file and text can not be empty together</div>
     </div>

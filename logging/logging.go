@@ -36,25 +36,25 @@ func SetUpFile(name, fileName string, iFlag, eFlag int) (*os.File, error) {
 	return f, nil
 }
 
-// Log is logger storage for request id and related methods..
+// Log is logger storage for request ID and related methods..
 type Log struct {
-	id string
+	ID string
 }
 
-// vars adds Log.id in the begin of slice a.
+// vars adds Log.ID in the begin of slice a.
 func (l *Log) vars(a []interface{}) []interface{} {
 	var v = make([]interface{}, 1, len(a)+1)
-	v[0] = l.id
+	v[0] = l.ID
 	return append(v, a...)
 }
 
-// Info is logger info wrapper. It adds request id.
+// Info is logger info wrapper. It adds request ID.
 func (l *Log) Info(format string, a ...interface{}) {
 	f, v := "[%s] "+format, l.vars(a)
 	logInfo.Printf(f, v...)
 }
 
-// Error is logger error wrapper. It adds request id.
+// Error is logger error wrapper. It adds request ID.
 func (l *Log) Error(format string, a ...interface{}) {
 	f, v := "[%s] "+format, l.vars(a)
 	logError.Printf(f, v...)

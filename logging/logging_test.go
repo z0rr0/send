@@ -105,13 +105,13 @@ func TestNew(t *testing.T) {
 	SetUp("test", &i, &e, 0, 0)
 	l := New("")
 	l.Info("info=%s", "testMsg")
-	expected := fmt.Sprintf("INFO [test] [%s] info=testMsg\n", l.id)
+	expected := fmt.Sprintf("INFO [test] [%s] info=testMsg\n", l.ID)
 	if v := i.String(); v != expected {
 		t.Errorf("failed info logger message=%v", v)
 	}
 
 	l.Error("error=%s", "testErrMsg")
-	expected = fmt.Sprintf("ERROR [test] [%s] error=testErrMsg\n", l.id)
+	expected = fmt.Sprintf("ERROR [test] [%s] error=testErrMsg\n", l.ID)
 	if v := e.String(); v != expected {
 		t.Errorf("failed error logger message=%v", v)
 	}

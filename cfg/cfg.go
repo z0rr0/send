@@ -25,9 +25,10 @@ type server struct {
 }
 
 type storage struct {
-	File string `toml:"file"`
-	Dir  string `toml:"dir"`
-	Db   *sql.DB
+	File    string `toml:"file"`
+	Dir     string `toml:"dir"`
+	Timeout int    `toml:"timeout"`
+	Db      *sql.DB
 }
 
 // String returns base info about storage.
@@ -75,6 +76,11 @@ func (c *Config) GCPeriod() time.Duration {
 	return time.Duration(c.Settings.GC) * time.Second
 }
 
+// DbPeriod is gc database period in seconds.
+func (c *Config) DbPeriod() time.Duration {
+	return time.Duration(c.Storage.Timeout) * time.Second
+}
+
 // MaxFileSize returns max file size.
 func (c *Config) MaxFileSize() int {
 	return c.Settings.Size << 20
@@ -119,6 +125,7 @@ func (c *Config) isValid() error {
 	}
 	c.Settings.Static = fullPath
 
+	err = isGreaterThanZero(c.Storage.Timeout, "storage.timeout", err)
 	err = isGreaterThanZero(c.Server.Timeout, "server.timeout", err)
 	err = isGreaterThanZero(c.Server.Port, "server.port", err)
 	err = isGreaterThanZero(c.Settings.TTL, "Settings.ttl", err)

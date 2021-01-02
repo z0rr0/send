@@ -35,4 +35,4 @@ Custom config file can be used from environment variable `SENDCFG`.
 ## License
 
 This source code is governed by a MIT license that can be found
-in the [LICENSE](https://github.com/z0rr0/send/blob/master/LICENSE) file.
+in the [LICENSE](https://github.com/z0rr0/send/blob/main/LICENSE) file.

@@ -10,8 +10,8 @@ import (
 )
 
 // InTransaction runs method `f` inside the database transaction and does commit or rollback.
-func InTransaction(db *sql.DB, f func(tx *sql.Tx) error) error {
-	tx, err := db.Begin()
+func InTransaction(ctx context.Context, db *sql.DB, f func(tx *sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed transaction begin: %w", err)
 	}
@@ -33,12 +33,13 @@ func InTransaction(db *sql.DB, f func(tx *sql.Tx) error) error {
 
 // expired returns already expired items for now timestamp.
 func expired(ctx context.Context, tx *sql.Tx) ([]*Item, error) {
+	const expiredSQL = "SELECT `id`, `file_path` FROM `storage` WHERE `expired`<? ORDER BY `id`;"
 	var items []*Item
-	stmt, err := tx.PrepareContext(ctx, "SELECT `id`, `file_path` FROM `storage` WHERE `expired`<?;")
+	stmt, err := tx.PrepareContext(ctx, expiredSQL)
 	if err != nil {
 		return nil, fmt.Errorf("prepare select expired query: %w", err)
 	}
-	rows, err := tx.Stmt(stmt).Query(time.Now().UTC())
+	rows, err := tx.StmtContext(ctx, stmt).QueryContext(ctx, time.Now().UTC())
 	if err != nil {
 		return nil, fmt.Errorf("exec select expired query: %w", err)
 	}
@@ -59,12 +60,13 @@ func expired(ctx context.Context, tx *sql.Tx) ([]*Item, error) {
 
 // deleteItems removes items by their identifiers.
 func deleteItems(ctx context.Context, tx *sql.Tx, items ...*Item) (int64, error) {
-	// statement will be closed when the transaction has been committed or rolled back
-	stmt, err := tx.PrepareContext(ctx, "DELETE FROM `storage` WHERE `id` IN (?);")
+	// prepare sql query directly with arguments to exclude multi-items parsing
+	var deleteQuery = fmt.Sprintf("DELETE FROM `storage` WHERE `id` IN (%s);", stringIDs(items))
+	stmt, err := tx.PrepareContext(ctx, deleteQuery)
 	if err != nil {
-		return 0, fmt.Errorf("can not prepare deleteItems transaction: %w", err)
+		return 0, fmt.Errorf("prepare deleteItems query: %w", err)
 	}
-	result, err := tx.Stmt(stmt).Exec(stringIDs(items))
+	result, err := stmt.ExecContext(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("can not exec deleteItems transaction: %w", err)
 	}
@@ -74,10 +76,13 @@ func deleteItems(ctx context.Context, tx *sql.Tx, items ...*Item) (int64, error)
 // deleteByDate removes expired items.
 func deleteByDate(ctx context.Context, db *sql.DB) (int64, error) {
 	var n int64
-	var txErr = InTransaction(db, func(tx *sql.Tx) error {
+	var txErr = InTransaction(ctx, db, func(tx *sql.Tx) error {
 		items, err := expired(ctx, tx)
 		if err != nil {
 			return err
+		}
+		if len(items) == 0 {
+			return nil
 		}
 		n, err = deleteItems(ctx, tx, items...)
 		if err != nil {

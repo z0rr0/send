@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/google/uuid"
 )
@@ -17,16 +18,23 @@ var (
 	logError = log.New(os.Stderr, "ERROR", log.Ldate|log.Ltime|log.Lshortfile)
 	// logInfo - info logger.
 	logInfo = log.New(os.Stdout, "INFO", log.LstdFlags)
+	// lock for global logs update
+	mu sync.Mutex
 )
 
 // SetUp overwrites default loggers with custom app name and writers.
 func SetUp(name string, i, e io.Writer, iFlag, eFlag int) {
+	mu.Lock()
 	logInfo = log.New(i, fmt.Sprintf("INFO [%s] ", name), iFlag)
 	logError = log.New(e, fmt.Sprintf("ERROR [%s] ", name), eFlag)
+	mu.Unlock()
 }
 
 // SetUpFile overwrites default logger with custom one and does output to the fileName.
 func SetUpFile(name, fileName string, iFlag, eFlag int) (*os.File, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return nil, err

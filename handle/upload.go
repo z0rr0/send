@@ -19,8 +19,9 @@ const defaultPasswordBytes = 10
 
 // UploadData is upload result page data.
 type UploadData struct {
-	URL      string
-	Password string
+	URL        string
+	Password   string
+	PwdDisable bool
 }
 
 // validateInt checks that field is in the range [1; max].
@@ -131,6 +132,8 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 // upload gets incoming data and saves it to the storage.
 func upload(ctx context.Context, w http.ResponseWriter, p *Params) error {
 	const tplName = "upload.html"
+	var pwdDisable bool
+
 	item, password, err := validateUpload(w, p)
 	if err != nil {
 		return err
@@ -145,8 +148,9 @@ func upload(ctx context.Context, w http.ResponseWriter, p *Params) error {
 	}
 	if !item.AutoPassword {
 		password = "*****"
+		pwdDisable = true
 	}
-	data := &UploadData{URL: item.GetURL(p.Request, p.Secure).String(), Password: password}
+	data := &UploadData{URL: item.GetURL(p.Request, p.Secure).String(), Password: password, PwdDisable: pwdDisable}
 	err = p.Settings.Tpl[cfg.Upload].ExecuteTemplate(w, tplName, data)
 	if err != nil {
 		return fmt.Errorf("failed execute template=%s: %w", tplName, err)

@@ -2,11 +2,21 @@
 {{define "content"}}
 
 <dl class="row">
-    <dt class="col-sm-3">URL</dt>
-    <dd class="col-sm-9"><samp>{{.URL}}</samp></dd>
+    <dt class="col-sm-2">URL</dt>
+    <dd class="col-sm-9"><samp id="url_id">{{.URL}}</samp></dd>
+    <dd class="col-sm-1">
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="Copy('url_id')">Copy</button>
+    </dd>
 
-    <dt class="col-sm-3">Password</dt>
-    <dd class="col-sm-9"><small>{{.Password}}</small></dd>
+    <dt class="col-sm-2">Password</dt>
+    <dd class="col-sm-9"><small id="pwd_id">{{.Password}}</small></dd>
+    <dd class="col-sm-1">
+        <button
+                type="button"
+                class="btn btn-outline-primary btn-sm"{{if .PwdDisable }} disabled{{else}} onclick="Copy('pwd_id')"{{end}}>
+            Copy
+        </button>
+    </dd>
 </dl>
 <p>
     <a class="btn btn-success" href="/" role="button" title="Add new">Add new</a>

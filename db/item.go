@@ -198,7 +198,7 @@ func (item *Item) IsFileExists() bool {
 
 // Delete removes items from database and related file from file system.
 func (item *Item) Delete(ctx context.Context, db *sql.DB) error {
-	var txErr = InTransaction(db, func(tx *sql.Tx) error {
+	var txErr = InTransaction(ctx, db, func(tx *sql.Tx) error {
 		_, err := deleteItems(ctx, tx, item)
 		return err
 	})
@@ -214,12 +214,12 @@ func (item *Item) Save(ctx context.Context, db *sql.DB) error {
 		"(`key`,`text`,`file_name`,`file_path`,`count_text`,`count_file`," +
 		"`hash_text`,`hash_name`,`hash_file`,`salt_text`,`salt_name`,`salt_file`," +
 		"`created`,`updated`,`expired`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);"
-	return InTransaction(db, func(tx *sql.Tx) error {
+	return InTransaction(ctx, db, func(tx *sql.Tx) error {
 		stmt, err := tx.PrepareContext(ctx, insertSQL)
 		if err != nil {
 			return fmt.Errorf("insert statement: %w", err)
 		}
-		result, err := tx.Stmt(stmt).Exec(
+		result, err := tx.StmtContext(ctx, stmt).ExecContext(ctx,
 			item.Key, item.Text, item.FileName, item.FilePath, item.CountText, item.CountFile,
 			item.HashText, item.HashName, item.HashFile, item.SaltText, item.SaltName, item.SaltFile,
 			item.Created, item.Created, item.Expired,
@@ -264,13 +264,13 @@ func Read(ctx context.Context, db *sql.DB, key string) (*Item, error) {
 		"`hash_text`,`hash_name`,`hash_file`,`salt_text`,`salt_name`,`salt_file`," +
 		"`created`,`updated`,`expired` " +
 		"FROM `storage` " +
-		"WHERE `key`=? AND `expired`<? ((`count_text`>0) OR (`count_file`>0));"
+		"WHERE `key`=? AND `expired`<=? ((`count_text`>0) OR (`count_file`>0));"
 	stmt, err := db.PrepareContext(ctx, readSQL)
 	if err != nil {
 		return nil, fmt.Errorf("read item: %w", err)
 	}
 	item := &Item{}
-	err = stmt.QueryRow(key, time.Now().UTC()).Scan(
+	err = stmt.QueryRowContext(ctx, key, time.Now().UTC()).Scan(
 		&item.ID, &item.Key, &item.Text, &item.FileName, &item.FilePath, &item.CountText, &item.CountFile,
 		&item.HashText, &item.HashName, &item.HashFile, &item.HashFile, &item.SaltText, &item.SaltName, &item.SaltFile,
 		&item.Created, &item.Updated, &item.Expired,

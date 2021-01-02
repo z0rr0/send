@@ -210,7 +210,6 @@ func parseTemplates(fullPath string) (map[string]*template.Template, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	upload, err := template.ParseFiles(base, filepath.Join(fullPath, "upload.html"))
 	if err != nil {
 		return nil, err

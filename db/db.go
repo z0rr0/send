@@ -31,9 +31,10 @@ func InTransaction(ctx context.Context, db *sql.DB, f func(tx *sql.Tx) error) er
 	return nil
 }
 
-// expired returns already expired items for now timestamp.
+// expired returns already expired items for now timestamp or it they have not active counters.
 func expired(ctx context.Context, tx *sql.Tx) ([]*Item, error) {
-	const expiredSQL = "SELECT `id`, `file_path` FROM `storage` WHERE `expired`<? ORDER BY `id`;"
+	const expiredSQL = "SELECT `id`, `file_path` FROM `storage` " +
+		"WHERE `expired`<? OR (`count_text`<1 AND `count_file`<1) ORDER BY `id`;"
 	var items []*Item
 	stmt, err := tx.PrepareContext(ctx, expiredSQL)
 	if err != nil {
@@ -73,8 +74,8 @@ func deleteItems(ctx context.Context, tx *sql.Tx, items ...*Item) (int64, error)
 	return result.RowsAffected()
 }
 
-// deleteByDate removes expired items.
-func deleteByDate(ctx context.Context, db *sql.DB) (int64, error) {
+// deleteByDateOrCounters removes expired items.
+func deleteByDateOrCounters(ctx context.Context, db *sql.DB) (int64, error) {
 	var n int64
 	var txErr = InTransaction(ctx, db, func(tx *sql.Tx) error {
 		items, err := expired(ctx, tx)
@@ -121,7 +122,7 @@ func GCMonitor(ch <-chan Item, shutdown, done chan struct{}, db *sql.DB, tickT, 
 			cancel()
 		case <-ticker.C:
 			ctx, cancel = context.WithTimeout(context.Background(), dbT)
-			if n, err := deleteByDate(ctx, db); err != nil {
+			if n, err := deleteByDateOrCounters(ctx, db); err != nil {
 				l.Error("failed deleteItems item(s) by date: %v", err)
 			} else {
 				if n > 0 {

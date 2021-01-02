@@ -50,8 +50,9 @@ func failedUpload(w http.ResponseWriter, status int, data *IndexData, p *Params)
 
 func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) {
 	var (
-		fileName     string
-		autoPassword bool
+		fileName             string
+		autoPassword         bool
+		countText, countFile int
 	)
 	data := &IndexData{MaxSize: p.Settings.Size}
 	if p.Request.Method != "POST" {
@@ -109,13 +110,21 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 		password = hex.EncodeToString(pwd)
 	}
 	// db item prepare
+	switch {
+	case fileName == "":
+		countText, countFile = times, 0
+	case text == "":
+		countText, countFile = 0, times
+	default:
+		countText, countFile = times, times
+	}
 	now := time.Now().UTC()
 	item := &db.Item{
 		Key:          p.Log.ID,
 		Text:         text,
 		FileName:     fileName,
-		CountText:    times,
-		CountFile:    times,
+		CountText:    countText,
+		CountFile:    countFile,
 		Created:      now,
 		Updated:      now,
 		Expired:      now.Add(time.Duration(ttl) * time.Second),

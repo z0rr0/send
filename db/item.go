@@ -235,6 +235,11 @@ func (item *Item) Save(ctx context.Context, db *sql.DB) error {
 	})
 }
 
+// IsActive returns true if item still have available counters.
+func (item *Item) IsActive() bool {
+	return item.CountText > 0 || item.CountFile > 0
+}
+
 // stringIDs returns comma-separated IDs of items.
 func stringIDs(items []*Item) string {
 	strIDs := make([]string, len(items))

@@ -90,38 +90,28 @@ func Random(n int) ([]byte, error) {
 
 // createFile creates a new file with name or Random value (if name is empty) inside base path.
 func createFile(base, name string) (*os.File, error) {
-	var (
-		attempts = fileCreateAttempts
-		err      error
-	)
-	genName := func() (string, error) {
-		value, e := Random(fileNameSize)
-		if e != nil {
-			return "", fmt.Errorf("random file name: %w", e)
-		}
-		return hex.EncodeToString(value), nil
-	}
-	if name == "" {
-		name, err = genName()
-		if err != nil {
-			return nil, err
-		}
-	} else {
+	var attempts = fileCreateAttempts
+	if name != "" {
 		attempts = 1
 	}
 	for i := 0; i < attempts; i++ {
-		fullPath := filepath.Join(base, name)
-		f, e := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-		if e != nil {
-			if !os.IsExist(e) {
-				// unexpected error
-				return nil, fmt.Errorf("random file creation: %w", e)
-			}
-			// do new attempt
-			name, err = genName()
+		if name == "" {
+			// no custom name, generate random one
+			value, err := Random(fileNameSize)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("random file name: %w", err)
 			}
+			name = hex.EncodeToString(value)
+		}
+		fullPath := filepath.Join(base, name)
+		f, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			if !os.IsExist(err) {
+				// unexpected error
+				return nil, fmt.Errorf("random file creation: %w", err)
+			}
+			// name duplication error - do new attempt
+			name = ""
 		} else {
 			return f, nil
 		}

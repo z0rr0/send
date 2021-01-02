@@ -37,8 +37,9 @@ type Item struct {
 	Updated   time.Time
 	Expired   time.Time
 	// without saving to db
-	Storage   string
-	ErrLogger *logging.Log
+	AutoPassword bool
+	Storage      string
+	ErrLogger    *logging.Log
 }
 
 func (item *Item) encryptText(secret string, e error) error {
@@ -184,6 +185,11 @@ func (item *Item) GetURL(r *http.Request, secure bool) *url.URL {
 	}
 }
 
+// String returns a string representation of Item.
+func (item *Item) String() string {
+	return fmt.Sprintf("Item{%s}", item.Key)
+}
+
 // IsFileExists checks item's related file exists.
 func (item *Item) IsFileExists() bool {
 	_, err := os.Stat(item.FilePath)
@@ -241,6 +247,9 @@ func stringIDs(items []*Item) string {
 // deleteFiles removes files of items.
 func deleteFiles(items ...*Item) error {
 	for _, item := range items {
+		if item.FilePath == "" {
+			continue
+		}
 		err := os.Remove(item.FilePath)
 		if err != nil {
 			return fmt.Errorf("deleteItems file of item=%d: %w", item.ID, err)

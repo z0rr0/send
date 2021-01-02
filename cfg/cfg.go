@@ -38,15 +38,15 @@ func (s *storage) String() string {
 
 // Settings is base service settings.
 type Settings struct {
-	TTL       int                `toml:"ttl"`
-	Times     int                `toml:"times"`
-	Size      int                `toml:"size"`
-	Salt      string             `toml:"salt"`
-	GC        int                `toml:"gc"`
-	Shutdown  int                `toml:"shutdown"`
-	Templates string             `toml:"templates"`
-	Static    string             `toml:"static"`
-	Tpl       *template.Template `toml:"-"`
+	TTL       int                           `toml:"ttl"`
+	Times     int                           `toml:"times"`
+	Size      int                           `toml:"size"`
+	Salt      string                        `toml:"salt"`
+	GC        int                           `toml:"gc"`
+	Shutdown  int                           `toml:"shutdown"`
+	Templates string                        `toml:"templates"`
+	Static    string                        `toml:"static"`
+	Tpl       map[string]*template.Template `toml:"-"`
 }
 
 // Config is a main configuration structure.
@@ -106,7 +106,7 @@ func (c *Config) isValid() error {
 	if err != nil {
 		return err
 	}
-	tpl, err := template.ParseGlob(fullPath + "/*.html")
+	tpl, err := parseTemplates(fullPath)
 	if err != nil {
 		return err
 	}

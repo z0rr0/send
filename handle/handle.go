@@ -15,6 +15,7 @@ import (
 )
 
 // Params is a struct with common handling arguments.
+// Except Request field, it is read-only struct.
 type Params struct {
 	Log      *logging.Log
 	DB       *sql.DB
@@ -23,6 +24,7 @@ type Params struct {
 	Version  *Version
 	DelItem  chan<- db.Item
 	Storage  string
+	Secure   bool
 }
 
 // IsAPI returns true if params are for API requests.
@@ -78,7 +80,7 @@ func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
 func index(_ context.Context, w http.ResponseWriter, p *Params) error {
 	const tplName = "index.html"
 	data := &IndexData{MaxSize: p.Settings.Size}
-	err := p.Settings.Tpl.ExecuteTemplate(w, tplName, data)
+	err := p.Settings.Tpl[cfg.Index].ExecuteTemplate(w, tplName, data)
 	if err != nil {
 		return fmt.Errorf("failed execute template=%s: %w", tplName, err)
 	}

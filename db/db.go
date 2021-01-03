@@ -33,8 +33,10 @@ func InTransaction(ctx context.Context, db *sql.DB, f func(tx *sql.Tx) error) er
 
 // expired returns already expired items for now timestamp or it they have not active counters.
 func expired(ctx context.Context, tx *sql.Tx) ([]*Item, error) {
-	const expiredSQL = "SELECT `id`, `file_path` FROM `storage` " +
-		"WHERE `expired`<? OR (`count_text`<1 AND `count_file`<1) ORDER BY `id`;"
+	const expiredSQL = "SELECT `id`, `file_path` " +
+		"FROM `storage` " +
+		"WHERE `expired`<? OR (`count_text`<1 AND `count_file`<1) " +
+		"ORDER BY `id`;"
 	var items []*Item
 	stmt, err := tx.PrepareContext(ctx, expiredSQL)
 	if err != nil {
@@ -109,7 +111,7 @@ func GCMonitor(ch <-chan Item, shutdown, done chan struct{}, db *sql.DB, tickT, 
 		close(done)
 		l.Info("gc monitor stopped")
 	}()
-	l.Info("GC monitor is running, period=%v\n", tickT)
+	l.Info("GC monitor is running, period=%v", tickT)
 	for {
 		select {
 		case item := <-ch:

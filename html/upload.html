@@ -11,8 +11,7 @@
     <dt class="col-sm-2">Password</dt>
     <dd class="col-sm-9"><small id="pwd_id">{{.Password}}</small></dd>
     <dd class="col-sm-1">
-        <button
-                type="button"
+        <button type="button"
                 class="btn btn-outline-primary btn-sm"{{if .PwdDisable }} disabled{{else}} onclick="Copy('pwd_id')"{{end}}>
             Copy
         </button>

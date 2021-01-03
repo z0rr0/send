@@ -199,6 +199,8 @@ func (item *Item) IsFileExists() bool {
 // Delete removes items from database and related file from file system.
 func (item *Item) Delete(ctx context.Context, db *sql.DB) error {
 	var txErr = InTransaction(ctx, db, func(tx *sql.Tx) error {
+		// ignore number of affected rows
+		// the item can be deleted before by GC
 		_, err := deleteItems(ctx, tx, item)
 		return err
 	})

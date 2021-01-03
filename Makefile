@@ -52,6 +52,9 @@ test: lint prepare
 	# go test -race -v -cover -coverprofile=coverage.out -trace trace.out <PACKAGE>
 	# go tool cover -html=coverage.out
 
+bench: lint prepare
+	go test -race -cover -benchmem -bench=. $(PWD)/...
+
 test_nocache: lint prepare
 	go test -count=1 -race -v -cover $(PWD)/...
 

@@ -14,15 +14,10 @@ import (
 	"github.com/z0rr0/send/encrypt"
 )
 
-// ErrAPI is validate API error struct.
-type ErrAPI struct {
+// errPassKey is validate API error struct.
+type errPassKey struct {
 	Err  string `json:"error"`
 	code int
-}
-
-// Error returns a string of API error.
-func (a *ErrAPI) Error() string {
-	return fmt.Sprintf("%d %s", a.code, a.Err)
 }
 
 // Version is application details info.
@@ -52,31 +47,30 @@ type TextMeta struct {
 	File *FileMeta `json:"file,omitempty"`
 }
 
-func validateTextAndMeta(p *Params) (string, string, error) {
+func validatePassKey(p *Params) (string, string, *errPassKey) {
 	if p.Request.Method != "POST" {
-		return "", "", &ErrAPI{Err: "failed HTTP method", code: http.StatusMethodNotAllowed}
+		return "", "", &errPassKey{Err: "failed HTTP method", code: http.StatusMethodNotAllowed}
 	}
 	password := p.Request.PostFormValue("password")
 	if password == "" {
-		return "", "", &ErrAPI{Err: "empty password", code: http.StatusBadRequest}
+		return "", "", &errPassKey{Err: "empty password", code: http.StatusBadRequest}
 	}
 	key := p.Request.PostFormValue("key")
 	if key == "" {
-		return "", "", &ErrAPI{Err: "empty key", code: http.StatusBadRequest}
+		return "", "", &errPassKey{Err: "empty key", code: http.StatusBadRequest}
 	}
 	if _, err := uuid.Parse(key); err != nil {
-		return "", "", &ErrAPI{Err: "bay key", code: http.StatusBadRequest}
+		return "", "", &errPassKey{Err: "bad key", code: http.StatusBadRequest}
 	}
 	return password, key, nil
 }
 
-// textAndMeta is API handler to return item's text and file meta info.
-func textAndMeta(ctx context.Context, w http.ResponseWriter, p *Params) error {
+// textAPI is API handler to return item's text and file meta info.
+func textAPI(ctx context.Context, w http.ResponseWriter, p *Params) error {
 	var fm *FileMeta
 	encoder := json.NewEncoder(w)
-	password, key, err := validateTextAndMeta(p)
-	if err != nil {
-		e := err.(*ErrAPI)
+	password, key, e := validatePassKey(p)
+	if e != nil {
 		w.WriteHeader(e.code)
 		return encoder.Encode(e)
 	}
@@ -87,22 +81,59 @@ func textAndMeta(ctx context.Context, w http.ResponseWriter, p *Params) error {
 			fallthrough
 		case errors.Is(err, sql.ErrNoRows):
 			w.WriteHeader(http.StatusNotFound)
-			return encoder.Encode(&ErrAPI{Err: "not found"})
+			return encoder.Encode(&errPassKey{Err: "not found"})
 		case errors.Is(err, encrypt.ErrSecret):
 			w.WriteHeader(http.StatusBadRequest)
-			return encoder.Encode(&ErrAPI{Err: "failed password or key"})
+			return encoder.Encode(&errPassKey{Err: "failed password or key"})
 		}
 		p.Log.Error("read item key=%v error: %v", key, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return encoder.Encode(&ErrAPI{Err: "internal error"})
+		return err
 	}
 	if item.FileMeta != "" {
 		fm, err = DecodeMeta(item.FileMeta)
 		if err != nil {
 			p.Log.Error("meta decode item key=%v error: %v", key, err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return encoder.Encode(&ErrAPI{Err: "internal error"})
+			return err
 		}
 	}
 	return encoder.Encode(&TextMeta{Text: item.Text, File: fm})
+}
+
+// fileAPI is API handler to return content file data.
+func fileAPI(ctx context.Context, w http.ResponseWriter, p *Params) error {
+	password, key, e := validatePassKey(p)
+	if e != nil {
+		w.WriteHeader(e.code)
+		return nil
+	}
+	// read/decrement meta+file, but decrypt only meta data due to dst=nil
+	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagMeta|db.FlagFile)
+	if err != nil {
+		switch {
+		case errors.Is(err, db.ErrNoAttempts):
+			fallthrough
+		case errors.Is(err, sql.ErrNoRows):
+			w.WriteHeader(http.StatusNotFound)
+			return nil
+		case errors.Is(err, encrypt.ErrSecret):
+			w.WriteHeader(http.StatusBadRequest)
+			return nil
+		}
+		p.Log.Error("read item file key=%v error: %v", key, err)
+		return err
+	}
+	// password is already valid and item was decremented for file and meta
+	if item.FileMeta != "" {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+	fm, err := DecodeMeta(item.FileMeta)
+	if err != nil {
+		p.Log.Error("meta decode item file key=%v error: %v", key, err)
+		return err
+	}
+	w.Header().Set("Content-Type", fm.ResponseContentType())
+	w.Header().Set("Content-Disposition", fm.ResponseContentDisposition())
+	w.Header().Set("Content-Length", fm.ResponseContentLength())
+	return item.Decrypt(password, w, db.FlagFile, nil)
 }

@@ -1,6 +1,10 @@
 package handle
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+)
 
 // FileMeta is base file data.
 type FileMeta struct {
@@ -16,6 +20,24 @@ func (f *FileMeta) Encode() (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
+// ResponseContentType returns HTTP content-type.
+func (f *FileMeta) ResponseContentType() string {
+	if f.ContentType == "" {
+		return "application/octet-stream"
+	}
+	return f.ContentType
+}
+
+// ResponseContentDisposition returns HTTP content-disposition.
+func (f *FileMeta) ResponseContentDisposition() string {
+	return fmt.Sprintf("attachment; filename=\"%s\"", f.Name)
+}
+
+// ResponseContentLength returns HTTP content-length.
+func (f *FileMeta) ResponseContentLength() string {
+	return strconv.FormatInt(f.Size, 10)
 }
 
 // DecodeMeta returns a parsed from json string file metadata.

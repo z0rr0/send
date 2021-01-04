@@ -51,7 +51,8 @@ func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
 		"/":            index,
 		"/upload":      upload,
 		"/api/version": version,
-		"/api/text":    textAndMeta,
+		"/api/text":    textAPI,
+		"/api/file":    fileAPI,
 	}
 	handler, ok := handlers[p.Request.URL.Path]
 	if !ok {

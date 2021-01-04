@@ -154,7 +154,7 @@ func (item *Item) decryptFile(secret string, dst io.Writer, e error) error {
 	if e != nil {
 		return e
 	}
-	if item.FileMeta == "" {
+	if (item.FileMeta == "") || (dst == nil) {
 		return nil
 	}
 	m := &encrypt.Msg{Salt: item.SaltFile, Hash: item.HashFile}
@@ -343,6 +343,24 @@ func (item *Item) decrement(ctx context.Context, tx *sql.Tx, flags DecryptFlag, 
 	return nil
 }
 
+// Read reads an item by its key from the database.
+// It also decrypts it and decrements counters.
+func Read(ctx context.Context, db *sql.DB, key, password string, dst io.Writer, flags DecryptFlag) (*Item, error) {
+	item := &Item{}
+	err := InTransaction(ctx, db, func(tx *sql.Tx) error {
+		// move 1st found error `e` through all methods
+		// to don't check `if e != nil` after every call
+		e := item.read(ctx, tx, key)
+		e = item.validate(flags, e)
+		e = item.Decrypt(password, dst, flags, e)
+		return item.decrement(ctx, tx, flags, e)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
 // stringIDs returns comma-separated IDs of items.
 func stringIDs(items []*Item) string {
 	strIDs := make([]string, len(items))
@@ -364,22 +382,4 @@ func deleteFiles(items ...*Item) error {
 		}
 	}
 	return nil
-}
-
-// Read reads an item by its key from the database.
-// It also decrypts it and decrements counters.
-func Read(ctx context.Context, db *sql.DB, key, password string, dst io.Writer, flags DecryptFlag) (*Item, error) {
-	item := &Item{}
-	err := InTransaction(ctx, db, func(tx *sql.Tx) error {
-		// move 1st found error `e` through all methods
-		// to don't check `if e != nil` after every call
-		e := item.read(ctx, tx, key)
-		e = item.validate(flags, e)
-		e = item.Decrypt(password, dst, flags, e)
-		return item.decrement(ctx, tx, flags, e)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return item, nil
 }

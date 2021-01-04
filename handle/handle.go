@@ -34,21 +34,6 @@ func (p *Params) IsAPI() bool {
 	return strings.HasPrefix(p.Request.URL.Path, "/api")
 }
 
-// Version is application details info.
-type Version struct {
-	Version     string `json:"version"`
-	Revision    string `json:"revision"`
-	Build       string `json:"build"`
-	Environment string `json:"environment"`
-}
-
-// String returns a string representation of Version struct.
-func (v *Version) String() string {
-	return fmt.Sprintf("Version: %s\nRevision: %s\nBuild date: %s\nGo version: %s",
-		v.Version, v.Revision, v.Build, v.Environment,
-	)
-}
-
 // IndexData is index page data.
 type IndexData struct {
 	MaxSize int
@@ -66,6 +51,7 @@ func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
 		"/":            index,
 		"/upload":      upload,
 		"/api/version": version,
+		"/api/text":    textAndMeta,
 	}
 	handler, ok := handlers[p.Request.URL.Path]
 	if !ok {

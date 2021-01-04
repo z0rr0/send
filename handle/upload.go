@@ -73,8 +73,6 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 			return nil, "", err
 		}
 	}
-	p.Log.Info("xaz meta=%v", fileMeta)
-
 	defer func() {
 		if e := p.Request.Body.Close(); e != nil {
 			p.Log.Error("close request body: %v", e)
@@ -125,6 +123,7 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 		Text:         text,
 		FileMeta:     fileMeta,
 		CountText:    countText,
+		CountMeta:    countText + countFile,
 		CountFile:    countFile,
 		Created:      now,
 		Updated:      now,

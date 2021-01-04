@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS `storage`
     `file_meta`  TEXT,
     `file_path`  TEXT,
     `count_text` INTEGER      NOT NULL DEFAULT 1,
+    `count_meta` INTEGER      NOT NULL DEFAULT 1,
     `count_file` INTEGER      NOT NULL DEFAULT 1,
     `hash_text`  VARCHAR(64)  NOT NULL,
     `hash_meta`  VARCHAR(64)  NOT NULL,
@@ -27,6 +28,7 @@ text - encrypted text message
 file_path - relative path to an encrypted file
 file_meta - encrypted file meta data, JSON {name, size, content_type}
 count_text - usage text counter (item is to be deleted if it is less than one)
+count_meta - usage file meta counter
 count_file - usage file counter (item is to be deleted if it is less than one)
 hash_text - hash of text message
 hash_meta - hash of text file name

@@ -28,6 +28,16 @@ const (
 	FlagFile
 )
 
+var (
+	// ErrDecrement is an error when decrement was failed.
+	ErrDecrement = errors.New("can not decrement item")
+	// ErrNoAttempts is an error when there are no attempts to read some data
+	ErrNoAttempts = errors.New("no more attempts")
+
+	// all decryption flags
+	flagSlice = [3]DecryptFlag{FlagText, FlagMeta, FlagMeta}
+)
+
 // Item is base data struct for incoming data.
 type Item struct {
 	ID        int64
@@ -36,6 +46,7 @@ type Item struct {
 	FileMeta  string
 	FilePath  string
 	CountText int
+	CountMeta int
 	CountFile int
 	HashText  string
 	HashFile  string
@@ -159,8 +170,10 @@ func (item *Item) Encrypt(secret string, src io.Reader) error {
 }
 
 // Decrypt updates item's fields by decrypted values.
-func (item *Item) Decrypt(secret string, dst io.Writer, flags DecryptFlag) error {
-	var err error
+func (item *Item) Decrypt(secret string, dst io.Writer, flags DecryptFlag, err error) error {
+	if err != nil {
+		return err
+	}
 	if flags&FlagText != 0 {
 		err = item.decryptText(secret, err)
 	}
@@ -174,6 +187,7 @@ func (item *Item) Decrypt(secret string, dst io.Writer, flags DecryptFlag) error
 }
 
 // ContentType returns string content-type for stored file.
+// TODO: delete me
 func (item *Item) ContentType() string {
 	const defaultContent = "application/octet-stream"
 	var ext string
@@ -230,16 +244,16 @@ func (item *Item) Delete(ctx context.Context, db *sql.DB) error {
 // Save saves the item to thd db database.
 func (item *Item) Save(ctx context.Context, db *sql.DB) error {
 	const insertSQL = "INSERT INTO `storage` " +
-		"(`key`,`text`,`file_meta`,`file_path`,`count_text`,`count_file`," +
+		"(`key`,`text`,`file_meta`,`file_path`,`count_text`,`count_meta`,`count_file`," +
 		"`hash_text`,`hash_meta`,`hash_file`,`salt_text`,`salt_meta`,`salt_file`," +
-		"`created`,`updated`,`expired`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);"
+		"`created`,`updated`,`expired`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);"
 	return InTransaction(ctx, db, func(tx *sql.Tx) error {
 		stmt, err := tx.PrepareContext(ctx, insertSQL)
 		if err != nil {
 			return fmt.Errorf("insert statement: %w", err)
 		}
 		result, err := tx.StmtContext(ctx, stmt).ExecContext(ctx,
-			item.Key, item.Text, item.FileMeta, item.FilePath, item.CountText, item.CountFile,
+			item.Key, item.Text, item.FileMeta, item.FilePath, item.CountText, item.CountMeta, item.CountFile,
 			item.HashText, item.HashMeta, item.HashFile, item.SaltText, item.SaltMeta, item.SaltFile,
 			item.Created, item.Created, item.Expired,
 		)
@@ -257,6 +271,76 @@ func (item *Item) Save(ctx context.Context, db *sql.DB) error {
 // IsActive returns true if item still have available counters.
 func (item *Item) IsActive() bool {
 	return item.CountText > 0 || item.CountFile > 0
+}
+
+// read loads an unexpired Item from database by the key.
+func (item *Item) read(ctx context.Context, tx *sql.Tx, key string) error {
+	const readSQL = "SELECT `id`,`key`,`text`,`file_meta`,`file_path`," +
+		"`count_text`,`count_meta`,`count_file`," +
+		"`hash_text`,`hash_meta`,`hash_file`," +
+		"`salt_text`,`salt_meta`,`salt_file`," +
+		"`created`,`updated`,`expired` " +
+		"FROM `storage` " +
+		"WHERE `key`=? AND `expired`>=? AND ((`count_text`>0) OR (`count_file`>0));"
+	stmt, err := tx.PrepareContext(ctx, readSQL)
+	if err != nil {
+		return fmt.Errorf("read item statement: %w", err)
+	}
+	return stmt.QueryRowContext(ctx, key, time.Now().UTC()).Scan(
+		&item.ID, &item.Key, &item.Text, &item.FileMeta, &item.FilePath,
+		&item.CountText, &item.CountMeta, &item.CountFile,
+		&item.HashText, &item.HashMeta, &item.HashFile,
+		&item.SaltText, &item.SaltMeta, &item.SaltFile,
+		&item.Created, &item.Updated, &item.Expired,
+	)
+}
+
+// validate checks that there are attempts to read requested data.
+func (item *Item) validate(flags DecryptFlag, err error) error {
+	if err != nil {
+		return err
+	}
+	noText := (flags&FlagText != 0) && (item.CountText < 1)
+	noMeta := (flags&FlagMeta != 0) && (item.CountMeta < 1)
+	noFile := (flags&FlagFile != 0) && (item.CountFile < 1)
+	if noText || noMeta || noFile {
+		return ErrNoAttempts
+	}
+	return nil
+}
+
+// decrement updates item in the database, decrements its counters.
+func (item *Item) decrement(ctx context.Context, tx *sql.Tx, flags DecryptFlag, err error) error {
+	if err != nil {
+		return err
+	}
+	const updateSQL = "UPDATE `storage` " +
+		"SET `count_text`=`count_text`-?, `count_meta`=`count_meta`-?, `count_file`=`count_file`-?, `updated`=? " +
+		"WHERE `id`=?;"
+	counters := make(map[DecryptFlag]int)
+	stmt, err := tx.PrepareContext(ctx, updateSQL)
+	if err != nil {
+		return fmt.Errorf("update statement: %w", err)
+	}
+	for _, flagValue := range flagSlice {
+		if flags&flagValue != 0 {
+			counters[flagValue] = 1
+		}
+	}
+	result, err := tx.StmtContext(ctx, stmt).ExecContext(
+		ctx, counters[FlagText], counters[FlagMeta], counters[FlagFile], time.Now().UTC(), item.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("exec update item: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check updated rows after decrement: %w", err)
+	}
+	if n != 1 {
+		return ErrDecrement
+	}
+	return nil
 }
 
 // stringIDs returns comma-separated IDs of items.
@@ -283,28 +367,19 @@ func deleteFiles(items ...*Item) error {
 }
 
 // Read reads an item by its key from the database.
-func Read(ctx context.Context, db *sql.DB, key string) (*Item, error) {
-	const readSQL = "SELECT `id`,`key`,`text`,`file_meta`,`file_path`,`count_text`,`count_file`," +
-		"`hash_text`,`hash_meta`,`hash_file`,`salt_text`,`salt_meta`,`salt_file`," +
-		"`created`,`updated`,`expired` " +
-		"FROM `storage` " +
-		"WHERE `key`=? AND `expired`<=? ((`count_text`>0) OR (`count_file`>0));"
-	stmt, err := db.PrepareContext(ctx, readSQL)
-	if err != nil {
-		return nil, fmt.Errorf("read item: %w", err)
-	}
+// It also decrypts it and decrements counters.
+func Read(ctx context.Context, db *sql.DB, key, password string, dst io.Writer, flags DecryptFlag) (*Item, error) {
 	item := &Item{}
-	err = stmt.QueryRowContext(ctx, key, time.Now().UTC()).Scan(
-		&item.ID, &item.Key, &item.Text, &item.FileMeta, &item.FilePath, &item.CountText, &item.CountFile,
-		&item.HashText, &item.HashMeta, &item.HashFile, &item.HashFile, &item.SaltText, &item.SaltMeta, &item.SaltFile,
-		&item.Created, &item.Updated, &item.Expired,
-	)
+	err := InTransaction(ctx, db, func(tx *sql.Tx) error {
+		// move 1st found error `e` through all methods
+		// to don't check `if e != nil` after every call
+		e := item.read(ctx, tx, key)
+		e = item.validate(flags, e)
+		e = item.Decrypt(password, dst, flags, e)
+		return item.decrement(ctx, tx, flags, e)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("read scan item: %w", err)
-	}
-	err = stmt.Close()
-	if err != nil {
-		return nil, fmt.Errorf("read item, close statement: %w", err)
+		return nil, err
 	}
 	return item, nil
 }

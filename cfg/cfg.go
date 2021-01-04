@@ -49,6 +49,7 @@ type Settings struct {
 	Size      int                           `toml:"size"`
 	Salt      string                        `toml:"salt"`
 	GC        int                           `toml:"gc"`
+	PassLen   int                           `toml:"passlen"`
 	Shutdown  int                           `toml:"shutdown"`
 	Templates string                        `toml:"templates"`
 	Static    string                        `toml:"static"`
@@ -134,11 +135,12 @@ func (c *Config) isValid() error {
 	err = isGreaterThanZero(c.Storage.Timeout, "storage.timeout", err)
 	err = isGreaterThanZero(c.Server.Timeout, "server.timeout", err)
 	err = isGreaterThanZero(c.Server.Port, "server.port", err)
-	err = isGreaterThanZero(c.Settings.TTL, "Settings.ttl", err)
-	err = isGreaterThanZero(c.Settings.Times, "Settings.times", err)
-	err = isGreaterThanZero(c.Settings.Size, "Settings.size", err)
-	err = isGreaterThanZero(c.Settings.GC, "Settings.gc", err)
-	err = isGreaterThanZero(c.Settings.Shutdown, "Settings.shutdown", err)
+	err = isGreaterThanZero(c.Settings.TTL, "settings.ttl", err)
+	err = isGreaterThanZero(c.Settings.Times, "settings.times", err)
+	err = isGreaterThanZero(c.Settings.Size, "settings.size", err)
+	err = isGreaterThanZero(c.Settings.GC, "settings.gc", err)
+	err = isGreaterThanZero(c.Settings.PassLen, "settings.gc", err)
+	err = isGreaterThanZero(c.Settings.Shutdown, "settings.shutdown", err)
 	return err
 }
 

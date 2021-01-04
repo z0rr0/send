@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/z0rr0/send/cfg"
 	"github.com/z0rr0/send/db"
 	"github.com/z0rr0/send/logging"
@@ -45,26 +47,50 @@ func (iData *IndexData) HasError() bool {
 	return iData.Error != ""
 }
 
+// errPassKey is validate API error struct.
+type errPassKey struct {
+	Err  string `json:"error"`
+	code int
+}
+
+func validatePassKey(p *Params) (string, string, *errPassKey) {
+	if p.Request.Method != "POST" {
+		return "", "", &errPassKey{Err: "failed HTTP method", code: http.StatusMethodNotAllowed}
+	}
+	password := p.Request.PostFormValue("password")
+	if password == "" {
+		return "", "", &errPassKey{Err: "empty password", code: http.StatusBadRequest}
+	}
+	key := p.Request.PostFormValue("key")
+	if key == "" {
+		return "", "", &errPassKey{Err: "empty key", code: http.StatusBadRequest}
+	}
+	if _, err := uuid.Parse(key); err != nil {
+		return "", "", &errPassKey{Err: "bad key", code: http.StatusBadRequest}
+	}
+	return password, key, nil
+}
+
 // Main is a common HTTP handler.
 func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
 	var handlers = map[string]handlerType{
-		"/":            index,
-		"/upload":      upload,
-		"/api/version": version,
-		"/api/text":    textAPI,
-		"/api/file":    fileAPI,
+		"/":            indexHandler,
+		"/upload":      uploadHandler,
+		"/file":        fileHandler,
+		"/api/version": versionHandler,
+		"/api/text":    textAPIHandler,
 	}
 	handler, ok := handlers[p.Request.URL.Path]
 	if !ok {
 		// download by hash
 		// 32 hex: 8-4-4-4-12
-		handler = index
+		handler = indexHandler
 	}
 	return handler(ctx, w, p)
 }
 
-// index is a title web page.
-func index(_ context.Context, w http.ResponseWriter, p *Params) error {
+// indexHandler is a title web page.
+func indexHandler(_ context.Context, w http.ResponseWriter, p *Params) error {
 	const tplName = "index.html"
 	data := &IndexData{MaxSize: p.Settings.Size}
 	err := p.Settings.Tpl[cfg.Index].ExecuteTemplate(w, tplName, data)

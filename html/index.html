@@ -32,15 +32,15 @@
             <option value='86400' selected>day</option>
             <option value='604800'>week</option>
         </select>
-        <div id="ttlHelp" class="form-text">time to live - how long shared URL will be available</div>
+        <div id="ttlHelp" class="form-text">how long shared URL will be available</div>
     </div>
     <div class="mb-3">
         <!--<label for="password" class="form-label">Password</label>-->
         <input type="password" id="password" name="password" placeholder="secret" class="form-control"
                aria-describedby="passwordHelp">
         <div id="passwordHelp" class="form-text">
-            your private secret key for data encryption, it will not be saved<br>
-            if empty - it will be generated automatically
+            your private key for data encryption, it will not be saved<br>
+            leave blank to create automatically
         </div>
     </div>
     <button type="submit" class="btn btn-primary">Submit</button>

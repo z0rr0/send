@@ -74,7 +74,7 @@ func textAPI(ctx context.Context, w http.ResponseWriter, p *Params) error {
 		w.WriteHeader(e.code)
 		return encoder.Encode(e)
 	}
-	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagText|db.FlagMeta)
+	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagText|db.FlagMeta, p.DelItem)
 	if err != nil {
 		switch {
 		case errors.Is(err, db.ErrNoAttempts):
@@ -108,7 +108,7 @@ func fileAPI(ctx context.Context, w http.ResponseWriter, p *Params) error {
 		return nil
 	}
 	// read/decrement fileMeta+file, but decrypt only fileMeta data due to dst=nil
-	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagMeta|db.FlagFile)
+	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagMeta|db.FlagFile, p.DelItem)
 	if err != nil {
 		switch {
 		case errors.Is(err, db.ErrNoAttempts):

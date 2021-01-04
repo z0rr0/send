@@ -143,9 +143,9 @@ func GCMonitor(ch <-chan Item, shutdown, done chan struct{}, db *sql.DB, tickT, 
 		case item := <-ch:
 			ctx, cancel = context.WithTimeout(context.Background(), dbT)
 			if err := item.Delete(ctx, db); err != nil {
-				l.Error("failed deleteItems item %s: %v", item.String(), err)
+				l.Error("failed deleteItems %s: %v", item.String(), err)
 			} else {
-				l.Info("deleted item %s", item.String())
+				l.Info("deleted %s", item.String())
 			}
 			cancel()
 		case <-ticker.C:

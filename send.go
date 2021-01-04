@@ -79,7 +79,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	delItem := make(chan db.Item) // to delete items after attempts expirations
+	delItem := make(chan db.Item, 1) // to delete items after attempts expirations
 	defer func() {
 		if e := c.Close(); e != nil {
 			logger.Error("close cfg error: %v", e)

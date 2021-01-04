@@ -316,20 +316,42 @@ func (item *Item) decrement(ctx context.Context, tx *sql.Tx, flags DecryptFlag, 
 	if n != 1 {
 		return ErrDecrement
 	}
+	if flags&FlagText != 0 {
+		item.CountText--
+	}
+	if flags&FlagMeta != 0 {
+		item.CountMeta--
+	}
+	if flags&FlagFile != 0 {
+		item.CountFile--
+	}
 	return nil
+}
+
+// NotActive returns false if item still has available counters.
+func (item *Item) NotActive() bool {
+	return !(item.CountText > 0 || item.CountFile > 0)
 }
 
 // Read reads an item by its key from the database.
 // It also decrypts request by flags fields and decrements their counters.
-func Read(ctx context.Context, db *sql.DB, key, password string, dst io.Writer, flags DecryptFlag) (*Item, error) {
+func Read(ctx context.Context, db *sql.DB, key, pwd string, dst io.Writer, flags DecryptFlag, ch chan<- Item) (*Item, error) {
 	item := &Item{}
 	err := InTransaction(ctx, db, func(tx *sql.Tx) error {
 		// move 1st found error `e` through all methods
 		// to don't check `if e != nil` after every call
 		e := item.read(ctx, tx, key)
 		e = item.validate(flags, e)
-		e = item.Decrypt(password, dst, flags, e)
-		return item.decrement(ctx, tx, flags, e)
+		e = item.Decrypt(pwd, dst, flags, e)
+		e = item.decrement(ctx, tx, flags, e)
+		if e != nil {
+			return e
+		}
+		if item.NotActive() {
+			// delete item from database without GC waiting
+			ch <- *item
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err

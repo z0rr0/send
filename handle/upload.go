@@ -49,7 +49,7 @@ func failedUpload(w http.ResponseWriter, status int, data *IndexData, p *Params)
 
 func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) {
 	var (
-		fileName             string
+		fileMeta             string
 		autoPassword         bool
 		countText, countFile int
 	)
@@ -67,13 +67,19 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 		}
 		// ErrMissingFile will be checked later with text-field
 	} else {
-		fileName = h.Filename
+		fm := &FileMeta{Name: h.Filename, Size: h.Size, ContentType: h.Header.Get("Content-Type")}
+		fileMeta, err = fm.Encode()
+		if err != nil {
+			return nil, "", err
+		}
 	}
+	p.Log.Info("xaz meta=%v", fileMeta)
+
 	defer func() {
 		if e := p.Request.Body.Close(); e != nil {
 			p.Log.Error("close request body: %v", e)
 		}
-		if fileName != "" {
+		if fileMeta != "" {
 			if e := f.Close(); e != nil {
 				p.Log.Error("close incoming file: %v", e)
 			}
@@ -81,7 +87,7 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 	}()
 	// text
 	text := p.Request.PostFormValue("text")
-	if fileName == "" && text == "" {
+	if fileMeta == "" && text == "" {
 		data.Error = "empty text and file fields"
 		return nil, "", failedUpload(w, http.StatusBadRequest, data, p)
 	}
@@ -106,7 +112,7 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 	}
 	// db item prepare
 	switch {
-	case fileName == "":
+	case fileMeta == "":
 		countText, countFile = times, 0
 	case text == "":
 		countText, countFile = 0, times
@@ -117,7 +123,7 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 	item := &db.Item{
 		Key:          p.Log.ID,
 		Text:         text,
-		FileName:     fileName,
+		FileMeta:     fileMeta,
 		CountText:    countText,
 		CountFile:    countFile,
 		Created:      now,

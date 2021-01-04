@@ -18,21 +18,31 @@ import (
 	"github.com/z0rr0/send/logging"
 )
 
+// DecryptFlag is a type for decryption flags.
+type DecryptFlag uint8
+
+// decryption flags
+const (
+	FlagText DecryptFlag = 1 << iota
+	FlagMeta
+	FlagFile
+)
+
 // Item is base data struct for incoming data.
 type Item struct {
 	ID        int64
 	Key       string
 	Text      string
-	FileName  string
+	FileMeta  string
 	FilePath  string
 	CountText int
 	CountFile int
 	HashText  string
 	HashFile  string
-	HashName  string
+	HashMeta  string
 	SaltText  string
 	SaltFile  string
-	SaltName  string
+	SaltMeta  string
 	Created   time.Time
 	Updated   time.Time
 	Expired   time.Time
@@ -76,36 +86,36 @@ func (item *Item) decryptText(secret string, e error) error {
 	return nil
 }
 
-func (item *Item) encryptFileName(secret string, e error) error {
+func (item *Item) encryptFileMeta(secret string, e error) error {
 	if e != nil {
 		return e
 	}
-	if item.FileName == "" {
+	if item.FileMeta == "" {
 		return nil
 	}
-	m, err := encrypt.Text(secret, item.FileName)
+	m, err := encrypt.Text(secret, item.FileMeta)
 	if err != nil {
 		return err
 	}
-	item.FileName = m.Value
-	item.HashName = m.Hash
-	item.SaltName = m.Salt
+	item.FileMeta = m.Value
+	item.HashMeta = m.Hash
+	item.SaltMeta = m.Salt
 	return nil
 }
 
-func (item *Item) decryptFileName(secret string, e error) error {
+func (item *Item) decryptFileMeta(secret string, e error) error {
 	if e != nil {
 		return e
 	}
-	if item.FileName == "" {
+	if item.FileMeta == "" {
 		return nil
 	}
-	m := &encrypt.Msg{Salt: item.SaltName, Value: item.FileName, Hash: item.HashName}
+	m := &encrypt.Msg{Salt: item.SaltMeta, Value: item.FileMeta, Hash: item.HashMeta}
 	plainText, err := encrypt.DecryptText(secret, m)
 	if err != nil {
 		return err
 	}
-	item.FileName = plainText
+	item.FileMeta = plainText
 	return nil
 }
 
@@ -113,7 +123,7 @@ func (item *Item) encryptFile(secret string, src io.Reader, e error) error {
 	if e != nil {
 		return e
 	}
-	if item.FileName == "" {
+	if item.FileMeta == "" {
 		return nil
 	}
 	if src == nil {
@@ -133,7 +143,7 @@ func (item *Item) decryptFile(secret string, dst io.Writer, e error) error {
 	if e != nil {
 		return e
 	}
-	if item.FileName == "" {
+	if item.FileMeta == "" {
 		return nil
 	}
 	m := &encrypt.Msg{Salt: item.SaltFile, Hash: item.HashFile}
@@ -144,25 +154,32 @@ func (item *Item) decryptFile(secret string, dst io.Writer, e error) error {
 func (item *Item) Encrypt(secret string, src io.Reader) error {
 	var err error
 	err = item.encryptText(secret, err)
-	err = item.encryptFileName(secret, err)
+	err = item.encryptFileMeta(secret, err)
 	return item.encryptFile(secret, src, err)
 }
 
 // Decrypt updates item's fields by decrypted values.
-func (item *Item) Decrypt(secret string, dst io.Writer) error {
+func (item *Item) Decrypt(secret string, dst io.Writer, flags DecryptFlag) error {
 	var err error
-	err = item.decryptText(secret, err)
-	err = item.decryptFileName(secret, err)
-	return item.decryptFile(secret, dst, err)
+	if flags&FlagText != 0 {
+		err = item.decryptText(secret, err)
+	}
+	if flags&FlagMeta != 0 {
+		err = item.decryptFileMeta(secret, err)
+	}
+	if flags&FlagFile != 0 {
+		err = item.decryptFile(secret, dst, err)
+	}
+	return err
 }
 
 // ContentType returns string content-type for stored file.
 func (item *Item) ContentType() string {
 	const defaultContent = "application/octet-stream"
 	var ext string
-	i := strings.LastIndex(item.FileName, ".")
+	i := strings.LastIndex(item.FileMeta, ".")
 	if i > -1 {
-		ext = item.FileName[i:]
+		ext = item.FileMeta[i:]
 	}
 	m := mime.TypeByExtension(ext)
 	if m == "" {
@@ -213,8 +230,8 @@ func (item *Item) Delete(ctx context.Context, db *sql.DB) error {
 // Save saves the item to thd db database.
 func (item *Item) Save(ctx context.Context, db *sql.DB) error {
 	const insertSQL = "INSERT INTO `storage` " +
-		"(`key`,`text`,`file_name`,`file_path`,`count_text`,`count_file`," +
-		"`hash_text`,`hash_name`,`hash_file`,`salt_text`,`salt_name`,`salt_file`," +
+		"(`key`,`text`,`file_meta`,`file_path`,`count_text`,`count_file`," +
+		"`hash_text`,`hash_meta`,`hash_file`,`salt_text`,`salt_meta`,`salt_file`," +
 		"`created`,`updated`,`expired`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);"
 	return InTransaction(ctx, db, func(tx *sql.Tx) error {
 		stmt, err := tx.PrepareContext(ctx, insertSQL)
@@ -222,8 +239,8 @@ func (item *Item) Save(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("insert statement: %w", err)
 		}
 		result, err := tx.StmtContext(ctx, stmt).ExecContext(ctx,
-			item.Key, item.Text, item.FileName, item.FilePath, item.CountText, item.CountFile,
-			item.HashText, item.HashName, item.HashFile, item.SaltText, item.SaltName, item.SaltFile,
+			item.Key, item.Text, item.FileMeta, item.FilePath, item.CountText, item.CountFile,
+			item.HashText, item.HashMeta, item.HashFile, item.SaltText, item.SaltMeta, item.SaltFile,
 			item.Created, item.Created, item.Expired,
 		)
 		if err != nil {
@@ -267,8 +284,8 @@ func deleteFiles(items ...*Item) error {
 
 // Read reads an item by its key from the database.
 func Read(ctx context.Context, db *sql.DB, key string) (*Item, error) {
-	const readSQL = "SELECT `id`,`key`,`text`,`file_name`,`file_path`,`count_text`,`count_file`," +
-		"`hash_text`,`hash_name`,`hash_file`,`salt_text`,`salt_name`,`salt_file`," +
+	const readSQL = "SELECT `id`,`key`,`text`,`file_meta`,`file_path`,`count_text`,`count_file`," +
+		"`hash_text`,`hash_meta`,`hash_file`,`salt_text`,`salt_meta`,`salt_file`," +
 		"`created`,`updated`,`expired` " +
 		"FROM `storage` " +
 		"WHERE `key`=? AND `expired`<=? ((`count_text`>0) OR (`count_file`>0));"
@@ -278,8 +295,8 @@ func Read(ctx context.Context, db *sql.DB, key string) (*Item, error) {
 	}
 	item := &Item{}
 	err = stmt.QueryRowContext(ctx, key, time.Now().UTC()).Scan(
-		&item.ID, &item.Key, &item.Text, &item.FileName, &item.FilePath, &item.CountText, &item.CountFile,
-		&item.HashText, &item.HashName, &item.HashFile, &item.HashFile, &item.SaltText, &item.SaltName, &item.SaltFile,
+		&item.ID, &item.Key, &item.Text, &item.FileMeta, &item.FilePath, &item.CountText, &item.CountFile,
+		&item.HashText, &item.HashMeta, &item.HashFile, &item.HashFile, &item.SaltText, &item.SaltMeta, &item.SaltFile,
 		&item.Created, &item.Updated, &item.Expired,
 	)
 	if err != nil {

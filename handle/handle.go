@@ -14,6 +14,8 @@ import (
 	"github.com/z0rr0/send/logging"
 )
 
+type handlerType func(context.Context, http.ResponseWriter, *Params) error
+
 // Params is a struct with common handling arguments.
 // Except Request field, it is read-only struct.
 type Params struct {
@@ -60,17 +62,15 @@ func (iData *IndexData) HasError() bool {
 
 // Main is a common HTTP handler.
 func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
-	var handler func(context.Context, http.ResponseWriter, *Params) error
-
-	switch p.Request.URL.Path {
-	case "/":
-		handler = index
-	case "/upload":
-		handler = upload
-	case "/api/version":
-		handler = version
-	default:
+	var handlers = map[string]handlerType{
+		"/":            index,
+		"/upload":      upload,
+		"/api/version": version,
+	}
+	handler, ok := handlers[p.Request.URL.Path]
+	if !ok {
 		// download by hash
+		// 32 hex: 8-4-4-4-12
 		handler = index
 	}
 	return handler(ctx, w, p)

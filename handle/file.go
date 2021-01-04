@@ -66,7 +66,7 @@ func fileHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
 		return nil
 	}
 	// read/decrement fileMeta+file, but decrypt only fileMeta data due to dst=nil
-	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagMeta|db.FlagFile, p.DelItem)
+	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagMeta|db.FlagFile)
 	if err != nil {
 		switch {
 		case errors.Is(err, db.ErrNoAttempts):
@@ -81,6 +81,7 @@ func fileHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
 		p.Log.Error("read item file key=%v error: %v", key, err)
 		return err
 	}
+	defer item.CheckCounts(p.DelItem)
 	// password is already valid and item was decremented for file and fileMeta
 	if item.FileMeta != "" {
 		w.WriteHeader(http.StatusNoContent)

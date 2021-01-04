@@ -48,7 +48,7 @@ func textAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) error
 		w.WriteHeader(e.code)
 		return encoder.Encode(e)
 	}
-	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagText|db.FlagMeta, p.DelItem)
+	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagText|db.FlagMeta)
 	if err != nil {
 		switch {
 		case errors.Is(err, db.ErrNoAttempts):
@@ -63,6 +63,7 @@ func textAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) error
 		p.Log.Error("read item key=%v error: %v", key, err)
 		return err
 	}
+	defer item.CheckCounts(p.DelItem)
 	if item.FileMeta != "" {
 		fileMeta, err = DecodeMeta(item.FileMeta)
 		if err != nil {

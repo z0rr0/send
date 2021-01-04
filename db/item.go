@@ -6,12 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/z0rr0/send/encrypt"
@@ -186,22 +183,6 @@ func (item *Item) Decrypt(secret string, dst io.Writer, flags DecryptFlag, err e
 	return err
 }
 
-// ContentType returns string content-type for stored file.
-// TODO: delete me
-func (item *Item) ContentType() string {
-	const defaultContent = "application/octet-stream"
-	var ext string
-	i := strings.LastIndex(item.FileMeta, ".")
-	if i > -1 {
-		ext = item.FileMeta[i:]
-	}
-	m := mime.TypeByExtension(ext)
-	if m == "" {
-		return defaultContent
-	}
-	return m
-}
-
 // GetURL returns item's URL.
 func (item *Item) GetURL(r *http.Request, secure bool) *url.URL {
 	// r.URL.Scheme is blank, so use hint from settings
@@ -266,11 +247,6 @@ func (item *Item) Save(ctx context.Context, db *sql.DB) error {
 		}
 		return nil
 	})
-}
-
-// IsActive returns true if item still have available counters.
-func (item *Item) IsActive() bool {
-	return item.CountText > 0 || item.CountFile > 0
 }
 
 // read loads an unexpired Item from database by the key.
@@ -344,7 +320,7 @@ func (item *Item) decrement(ctx context.Context, tx *sql.Tx, flags DecryptFlag, 
 }
 
 // Read reads an item by its key from the database.
-// It also decrypts it and decrements counters.
+// It also decrypts request by flags fields and decrements their counters.
 func Read(ctx context.Context, db *sql.DB, key, password string, dst io.Writer, flags DecryptFlag) (*Item, error) {
 	item := &Item{}
 	err := InTransaction(ctx, db, func(tx *sql.Tx) error {
@@ -359,27 +335,4 @@ func Read(ctx context.Context, db *sql.DB, key, password string, dst io.Writer, 
 		return nil, err
 	}
 	return item, nil
-}
-
-// stringIDs returns comma-separated IDs of items.
-func stringIDs(items []*Item) string {
-	strIDs := make([]string, len(items))
-	for i, item := range items {
-		strIDs[i] = strconv.FormatInt(item.ID, 10)
-	}
-	return strings.Join(strIDs, ",")
-}
-
-// deleteFiles removes files of items.
-func deleteFiles(items ...*Item) error {
-	for _, item := range items {
-		if item.FilePath == "" {
-			continue
-		}
-		err := os.Remove(item.FilePath)
-		if err != nil {
-			return fmt.Errorf("deleteItems file of item=%d: %w", item.ID, err)
-		}
-	}
-	return nil
 }

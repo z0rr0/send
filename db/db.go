@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/z0rr0/send/logging"
@@ -59,6 +62,29 @@ func expired(ctx context.Context, tx *sql.Tx) ([]*Item, error) {
 		return nil, fmt.Errorf("close rows expired query: %w", err)
 	}
 	return items, nil
+}
+
+// stringIDs returns comma-separated IDs of items.
+func stringIDs(items []*Item) string {
+	strIDs := make([]string, len(items))
+	for i, item := range items {
+		strIDs[i] = strconv.FormatInt(item.ID, 10)
+	}
+	return strings.Join(strIDs, ",")
+}
+
+// deleteFiles removes files of items.
+func deleteFiles(items ...*Item) error {
+	for _, item := range items {
+		if item.FilePath == "" {
+			continue
+		}
+		err := os.Remove(item.FilePath)
+		if err != nil {
+			return fmt.Errorf("deleteItems file of item=%d: %w", item.ID, err)
+		}
+	}
+	return nil
 }
 
 // deleteItems removes items by their identifiers.

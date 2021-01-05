@@ -90,11 +90,10 @@ func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
 
 // indexHandler is a title web page.
 func indexHandler(_ context.Context, w http.ResponseWriter, p *Params) error {
-	const tplName = "index.html"
 	data := &IndexData{MaxSize: p.Settings.Size}
-	err := p.Settings.Tpl[cfg.Index].ExecuteTemplate(w, tplName, data)
+	err := p.Settings.Tpl[cfg.Index].ExecuteTemplate(w, cfg.Index, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", tplName, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.Index, err)
 	}
 	return nil
 }

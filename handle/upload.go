@@ -35,11 +35,10 @@ func validateInt(name, value string, max int) (int, error) {
 
 // failedUpload returns index.html page with error message.
 func failedUpload(w http.ResponseWriter, status int, data *IndexData, p *Params) error {
-	const tplName = "index.html"
 	w.WriteHeader(status)
-	err := p.Settings.Tpl[cfg.Index].ExecuteTemplate(w, tplName, data)
+	err := p.Settings.Tpl[cfg.Index].ExecuteTemplate(w, cfg.Index, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", tplName, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.Index, err)
 	}
 	return nil
 }
@@ -137,9 +136,7 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 
 // uploadHandler gets incoming data and saves it to the storage.
 func uploadHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
-	const tplName = "upload.html"
 	var pwdDisable bool
-
 	item, password, err := validateUpload(w, p)
 	if err != nil {
 		return err
@@ -157,9 +154,9 @@ func uploadHandler(ctx context.Context, w http.ResponseWriter, p *Params) error 
 		pwdDisable = true
 	}
 	data := &UploadData{URL: item.GetURL(p.Request, p.Secure).String(), Password: password, PwdDisable: pwdDisable}
-	err = p.Settings.Tpl[cfg.Upload].ExecuteTemplate(w, tplName, data)
+	err = p.Settings.Tpl[cfg.Upload].ExecuteTemplate(w, cfg.Upload, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", tplName, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.Upload, err)
 	}
 	return nil
 }

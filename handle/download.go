@@ -17,22 +17,20 @@ import (
 // DownloadData id item's data for download page.
 type DownloadData struct {
 	Key       string
-	CountText int
-	CountFile int
+	CountText bool
+	CountFile bool
 }
 
 func notFound(w http.ResponseWriter, p *Params) error {
-	const tplNokName = "not_found.html"
-	err := p.Settings.Tpl[cfg.NotFound].ExecuteTemplate(w, tplNokName, nil)
+	err := p.Settings.Tpl[cfg.NotFound].ExecuteTemplate(w, cfg.NotFound, nil)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", tplNokName, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.NotFound, err)
 	}
 	return nil
 }
 
 // downloadHandler generates the download page.
 func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
-	const tplName = "download.html"
 	key := strings.Trim(p.Request.URL.Path, "/")
 	_, err := uuid.Parse(key)
 	if err != nil {
@@ -48,10 +46,14 @@ func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) erro
 		return notFound(w, p)
 	}
 	// item exists
-	data := &DownloadData{Key: key, CountText: item.CountText, CountFile: item.CountFile}
-	err = p.Settings.Tpl[cfg.Download].ExecuteTemplate(w, tplName, data)
+	data := &DownloadData{
+		Key:       key,
+		CountText: item.CountText > 0,
+		CountFile: item.CountFile > 0,
+	}
+	err = p.Settings.Tpl[cfg.Download].ExecuteTemplate(w, cfg.Download, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", tplName, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.Download, err)
 	}
 	return nil
 }

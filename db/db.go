@@ -20,7 +20,7 @@ func InTransaction(ctx context.Context, db *sql.DB, f func(tx *sql.Tx) error) er
 	}
 	err = f(tx)
 	if err != nil {
-		err = fmt.Errorf("failed dtransaction: %w", err)
+		err = fmt.Errorf("rollback transaction: %w", err)
 		e := tx.Rollback()
 		if e != nil {
 			err = fmt.Errorf("failed rollback: %v: %w", err, e)

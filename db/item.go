@@ -357,3 +357,18 @@ func Read(ctx context.Context, db *sql.DB, key, password string, dst io.Writer, 
 	}
 	return item, nil
 }
+
+// Exists returns the Item if counter fields if it exists by requested key.
+func Exists(ctx context.Context, db *sql.DB, key string) (*Item, error) {
+	const existsSQL = "SELECT `id`, `count_text`, `count_file` FROM `storage` " +
+		"WHERE `key`=? AND `expired`>=? AND ((`count_text`>0) OR (`count_file`>0)) LIMIT 1;"
+	var item = &Item{}
+	err := InTransaction(ctx, db, func(tx *sql.Tx) error {
+		stmt, e := tx.PrepareContext(ctx, existsSQL)
+		if e != nil {
+			return fmt.Errorf("exist statement: %w", e)
+		}
+		return stmt.QueryRowContext(ctx, key, time.Now().UTC()).Scan(&item.ID, &item.CountText, &item.CountFile)
+	})
+	return item, err
+}

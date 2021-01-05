@@ -19,8 +19,10 @@ import (
 
 // html templates names
 const (
-	Index  = "index"
-	Upload = "upload"
+	Index    = "index"
+	Upload   = "upload"
+	Download = "download.html"
+	NotFound = "not_found"
 )
 
 type server struct {
@@ -208,13 +210,19 @@ func checkDirectory(name string, mode os.FileMode) (string, error) {
 // parseTemplates parses expected templates files.
 func parseTemplates(fullPath string) (map[string]*template.Template, error) {
 	base := filepath.Join(fullPath, "base.html")
-	index, err := template.ParseFiles(base, filepath.Join(fullPath, "index.html"))
-	if err != nil {
-		return nil, err
+	templates := map[string]string{
+		Index:    "index.html",
+		Upload:   "upload.html",
+		Download: "download.html",
+		NotFound: "not_found.html",
 	}
-	upload, err := template.ParseFiles(base, filepath.Join(fullPath, "upload.html"))
-	if err != nil {
-		return nil, err
+	templateMap := make(map[string]*template.Template)
+	for tplName, fileName := range templates {
+		tpl, err := template.ParseFiles(base, filepath.Join(fullPath, fileName))
+		if err != nil {
+			return nil, err
+		}
+		templateMap[tplName] = tpl
 	}
-	return map[string]*template.Template{Index: index, Upload: upload}, nil
+	return templateMap, nil
 }

@@ -82,9 +82,8 @@ func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
 	}
 	handler, ok := handlers[p.Request.URL.Path]
 	if !ok {
-		// download by hash
-		// 32 hex: 8-4-4-4-12
-		handler = indexHandler
+		// download by UUID, 32 hex: 8-4-4-4-12
+		handler = downloadHandler
 	}
 	return handler(ctx, w, p)
 }

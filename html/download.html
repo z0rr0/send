@@ -12,6 +12,14 @@
 <div id="text_container_id"></div>
 <div id="file_container_id"></div>
 {{else}}
+<!-- there is only file -->
+<form method="POST" action="/file" id="file_form">
+    <input type="hidden" id="key" name="key" value="{{.Key}}" required>
+    <div class="mb-3">
+        <input type="password" id="password" name="password" placeholder="secret" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Submit</button>
+</form>
 {{end}}
 
 {{end}}

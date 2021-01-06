@@ -276,10 +276,10 @@ func (item *Item) validate(flags DecryptFlag, err error) error {
 	if err != nil {
 		return err
 	}
-	noText := (flags&FlagText != 0) && (item.CountText < 1)
-	noMeta := (flags&FlagMeta != 0) && (item.CountMeta < 1)
-	noFile := (flags&FlagFile != 0) && (item.CountFile < 1)
-	if noText || noMeta || noFile {
+	failed := flags&FlagText != 0 && item.CountText < 1
+	failed = failed || (flags&FlagMeta != 0) && (item.CountMeta < 1)
+	failed = failed || (flags&FlagFile != 0) && (item.CountFile < 1)
+	if failed {
 		return ErrNoAttempts
 	}
 	return nil
@@ -358,17 +358,24 @@ func Read(ctx context.Context, db *sql.DB, key, password string, dst io.Writer, 
 	return item, nil
 }
 
-// Exists returns the Item if counter fields if it exists by requested key.
+// Exists returns the Item with counter fields if it exists by requested key.
 func Exists(ctx context.Context, db *sql.DB, key string) (*Item, error) {
-	const existsSQL = "SELECT `id`, `count_text`, `count_file` FROM `storage` " +
-		"WHERE `key`=? AND `expired`>=? AND ((`count_text`>0) OR (`count_file`>0)) LIMIT 1;"
-	var item = &Item{}
-	err := InTransaction(ctx, db, func(tx *sql.Tx) error {
-		stmt, e := tx.PrepareContext(ctx, existsSQL)
-		if e != nil {
-			return fmt.Errorf("exist statement: %w", e)
-		}
-		return stmt.QueryRowContext(ctx, key, time.Now().UTC()).Scan(&item.ID, &item.CountText, &item.CountFile)
-	})
-	return item, err
+	const existsSQL = "SELECT `id`, `count_text`, `count_file` " +
+		"FROM `storage` " +
+		"WHERE `key`=? AND `expired`>=? AND ((`count_text`>0) OR (`count_file`>0)) " +
+		"LIMIT 1;"
+	stmt, err := db.PrepareContext(ctx, existsSQL)
+	if err != nil {
+		return nil, fmt.Errorf("exist statement: %w", err)
+	}
+	item := &Item{}
+	err = stmt.QueryRowContext(ctx, key, time.Now().UTC()).Scan(&item.ID, &item.CountText, &item.CountFile)
+	if err != nil {
+		return nil, err
+	}
+	err = stmt.Close()
+	if err != nil {
+		return nil, fmt.Errorf("close exist statement: %w", err)
+	}
+	return item, nil
 }

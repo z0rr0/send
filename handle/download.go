@@ -31,7 +31,7 @@ func notFound(w http.ResponseWriter, p *Params) error {
 
 // downloadHandler generates the download page.
 func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
-	key := strings.Trim(p.Request.URL.Path, "/")
+	key := strings.Trim(p.Request.URL.Path, "/ ")
 	_, err := uuid.Parse(key)
 	if err != nil {
 		return notFound(w, p)
@@ -45,7 +45,6 @@ func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) erro
 		}
 		return notFound(w, p)
 	}
-	// item exists
 	data := &DownloadData{
 		Key:       key,
 		CountText: item.CountText > 0,

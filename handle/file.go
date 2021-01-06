@@ -57,42 +57,41 @@ func DecodeMeta(fileMeta string) (*FileMeta, error) {
 	return f, nil
 }
 
-func failedDownload(w http.ResponseWriter, code int, msg string) error {
-	w.WriteHeader(code)
-	_, err := fmt.Fprint(w, msg)
-	return err
-}
-
 // fileHandler is handler to return content of the file.
 func fileHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
+	ajax := p.Request.PostFormValue("ajax") == "true"
 	password, key, e := validatePassKey(p)
 	if e != nil {
+		e.ajax = ajax
 		p.Log.Info("password/key validation failed: %v", e.Err)
-		return failedDownload(w, e.code, "secret validation failed")
+		return downloadErrHandler(w, p, e)
 	}
 	// read/decrement fileMeta+file, but decrypt only fileMeta data due to dst=nil
 	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagMeta|db.FlagFile)
 	if err != nil {
+		e = &ErrItem{Err: "internal error", code: http.StatusInternalServerError, ajax: ajax}
 		switch {
 		case errors.Is(err, db.ErrNoAttempts):
 			fallthrough
 		case errors.Is(err, sql.ErrNoRows):
-			return failedDownload(w, http.StatusNotFound, "not found")
+			e.code, e.Err = http.StatusNotFound, "not found"
+			return downloadErrHandler(w, p, e)
 		case errors.Is(err, encrypt.ErrSecret):
-			return failedDownload(w, http.StatusBadRequest, "secret validation failed")
+			e.code, e.Err, e.Key = http.StatusBadRequest, "failed secret", key
+			return downloadErrHandler(w, p, e)
 		}
 		p.Log.Error("read item file key=%v error: %v", key, err)
-		return failedDownload(w, http.StatusInternalServerError, "internal error")
+		return downloadErrHandler(w, p, e)
 	}
 	defer item.CheckCounts(p.DelItem)
 	// password is already valid and item was decremented for file and fileMeta
 	if item.FileMeta == "" {
-		return failedDownload(w, http.StatusNoContent, "no content")
+		return downloadErrHandler(w, p, &ErrItem{Err: "no content", code: http.StatusNoContent, ajax: ajax})
 	}
 	fileMeta, err := DecodeMeta(item.FileMeta)
 	if err != nil {
 		p.Log.Error("fileMeta decode item file key=%v error: %v", key, err)
-		return failedDownload(w, http.StatusInternalServerError, "internal error")
+		return downloadErrHandler(w, p, &ErrItem{Err: "internal error", code: http.StatusInternalServerError, ajax: ajax})
 	}
 	w.Header().Set("Content-Type", fileMeta.ResponseContentType())
 	w.Header().Set("Content-Disposition", fileMeta.ResponseContentDisposition())

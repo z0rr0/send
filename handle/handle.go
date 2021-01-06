@@ -50,12 +50,19 @@ func (iData *IndexData) HasError() bool {
 // ErrItem is validate API error struct.
 type ErrItem struct {
 	Err  string `json:"error"`
+	Key  string `json:"-"`
+	ajax bool
 	code int
 }
 
 // Error returns a string representation of the error.
 func (e *ErrItem) Error() string {
 	return fmt.Sprintf("%d %s", e.code, e.Err)
+}
+
+// HasKey returns true if the item has a filled key field.
+func (e *ErrItem) HasKey() bool {
+	return e.Key != ""
 }
 
 func validatePassKey(p *Params) (string, string, *ErrItem) {
@@ -74,6 +81,24 @@ func validatePassKey(p *Params) (string, string, *ErrItem) {
 		return "", "", &ErrItem{Err: "bad key", code: http.StatusBadRequest}
 	}
 	return password, key, nil
+}
+
+// downloadErrHandler is a handler method to return some error page/message.
+func downloadErrHandler(w http.ResponseWriter, p *Params, ei *ErrItem) error {
+	var err error
+	if ei == nil {
+		ei = &ErrItem{Err: "Not found", code: 404}
+	}
+	w.WriteHeader(ei.code)
+	if ei.ajax {
+		_, err = fmt.Fprint(w, ei.Err)
+		return err
+	}
+	err = p.Settings.Tpl[cfg.ErrorTpl].ExecuteTemplate(w, cfg.ErrorTpl, ei)
+	if err != nil {
+		return fmt.Errorf("failed execute template=%s: %w", cfg.ErrorTpl, err)
+	}
+	return nil
 }
 
 // Main is a common HTTP handler.

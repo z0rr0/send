@@ -55,6 +55,7 @@ function LoadFile(fileName) {
     let formData = new FormData();
     formData.append("key", form.key.value);
     formData.append("password", form.password.value);
+    formData.append("ajax", "true");
 
     const t = document.getElementById("file_container_id");
     const myInit = {method: form.method, cache: 'no-store', body: formData}

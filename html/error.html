@@ -1,4 +1,8 @@
 {{template "base" .}}
 {{define "content"}}
 <h3>{{.Error}}</h3>
+    {{ if .HasKey }}
+        <a href="/{{.Key}}" class="btn btn-primary" title="do new attempt">try again</a>
+    {{else}}
+    {{end}}
 {{end}}

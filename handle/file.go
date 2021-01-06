@@ -83,7 +83,7 @@ func fileHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
 	}
 	defer item.CheckCounts(p.DelItem)
 	// password is already valid and item was decremented for file and fileMeta
-	if item.FileMeta != "" {
+	if item.FileMeta == "" {
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	}

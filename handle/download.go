@@ -21,10 +21,14 @@ type DownloadData struct {
 	CountFile bool
 }
 
-func notFound(w http.ResponseWriter, p *Params) error {
-	err := p.Settings.Tpl[cfg.NotFound].ExecuteTemplate(w, cfg.NotFound, nil)
+func notFound(w http.ResponseWriter, p *Params, ei *ErrItem) error {
+	if ei == nil {
+		ei = &ErrItem{Err: "Not found", code: 404}
+	}
+	w.WriteHeader(ei.code)
+	err := p.Settings.Tpl[cfg.ErrorTpl].ExecuteTemplate(w, cfg.ErrorTpl, ei)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.NotFound, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.ErrorTpl, err)
 	}
 	return nil
 }
@@ -34,25 +38,25 @@ func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) erro
 	key := strings.Trim(p.Request.URL.Path, "/ ")
 	_, err := uuid.Parse(key)
 	if err != nil {
-		return notFound(w, p)
+		return notFound(w, p, nil)
 	}
 	item, err := db.Exists(ctx, p.DB, key)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			p.Log.Info("check item exists %s: %v", key, err)
-		} else {
-			p.Log.Error("check item exists %s: %v", key, err)
+			return notFound(w, p, nil)
 		}
-		return notFound(w, p)
+		p.Log.Error("check item exists %s: %v", key, err)
+		return notFound(w, p, &ErrItem{Err: "Internal error", code: 500})
 	}
 	data := &DownloadData{
 		Key:       key,
 		CountText: item.CountText > 0,
 		CountFile: item.CountFile > 0,
 	}
-	err = p.Settings.Tpl[cfg.Download].ExecuteTemplate(w, cfg.Download, data)
+	err = p.Settings.Tpl[cfg.DownloadTpl].ExecuteTemplate(w, cfg.DownloadTpl, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.Download, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.DownloadTpl, err)
 	}
 	return nil
 }

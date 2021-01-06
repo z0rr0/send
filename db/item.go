@@ -154,7 +154,7 @@ func (item *Item) decryptFile(secret string, dst io.Writer, e error) error {
 	if (item.FileMeta == "") || (dst == nil) {
 		return nil
 	}
-	m := &encrypt.Msg{Salt: item.SaltFile, Hash: item.HashFile}
+	m := &encrypt.Msg{Salt: item.SaltFile, Hash: item.HashFile, Value: item.FilePath}
 	return encrypt.DecryptFile(secret, m, dst)
 }
 

@@ -47,26 +47,31 @@ func (iData *IndexData) HasError() bool {
 	return iData.Error != ""
 }
 
-// errPassKey is validate API error struct.
-type errPassKey struct {
+// ErrItem is validate API error struct.
+type ErrItem struct {
 	Err  string `json:"error"`
 	code int
 }
 
-func validatePassKey(p *Params) (string, string, *errPassKey) {
+// Error returns a string representation of the error.
+func (e *ErrItem) Error() string {
+	return fmt.Sprintf("%d %s", e.code, e.Err)
+}
+
+func validatePassKey(p *Params) (string, string, *ErrItem) {
 	if p.Request.Method != "POST" {
-		return "", "", &errPassKey{Err: "failed HTTP method", code: http.StatusMethodNotAllowed}
+		return "", "", &ErrItem{Err: "failed HTTP method", code: http.StatusMethodNotAllowed}
 	}
 	password := p.Request.PostFormValue("password")
 	if password == "" {
-		return "", "", &errPassKey{Err: "empty password", code: http.StatusBadRequest}
+		return "", "", &ErrItem{Err: "empty password", code: http.StatusBadRequest}
 	}
 	key := p.Request.PostFormValue("key")
 	if key == "" {
-		return "", "", &errPassKey{Err: "empty key", code: http.StatusBadRequest}
+		return "", "", &ErrItem{Err: "empty key", code: http.StatusBadRequest}
 	}
 	if _, err := uuid.Parse(key); err != nil {
-		return "", "", &errPassKey{Err: "bad key", code: http.StatusBadRequest}
+		return "", "", &ErrItem{Err: "bad key", code: http.StatusBadRequest}
 	}
 	return password, key, nil
 }
@@ -91,9 +96,9 @@ func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
 // indexHandler is a title web page.
 func indexHandler(_ context.Context, w http.ResponseWriter, p *Params) error {
 	data := &IndexData{MaxSize: p.Settings.Size}
-	err := p.Settings.Tpl[cfg.Index].ExecuteTemplate(w, cfg.Index, data)
+	err := p.Settings.Tpl[cfg.IndexTpl].ExecuteTemplate(w, cfg.IndexTpl, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.Index, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.IndexTpl, err)
 	}
 	return nil
 }

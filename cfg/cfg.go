@@ -19,11 +19,11 @@ import (
 
 // html templates names
 const (
-	Base     = "base.html"
-	Index    = "index.html"
-	Upload   = "upload.html"
-	Download = "download.html"
-	NotFound = "not_found.html"
+	BaseTpl     = "base.html"
+	IndexTpl    = "index.html"
+	UploadTpl   = "upload.html"
+	DownloadTpl = "download.html"
+	ErrorTpl    = "error.html"
 )
 
 type server struct {
@@ -210,13 +210,13 @@ func checkDirectory(name string, mode os.FileMode) (string, error) {
 
 // parseTemplates parses expected templates files.
 func parseTemplates(fullPath string) (map[string]*template.Template, error) {
-	base := filepath.Join(fullPath, Base)
-	templates := []string{Index, Upload, Download, NotFound}
+	base := filepath.Join(fullPath, BaseTpl)
+	templates := []string{IndexTpl, UploadTpl, DownloadTpl, ErrorTpl}
 	templateMap := make(map[string]*template.Template)
 	for _, name := range templates {
 		tpl, err := template.ParseFiles(base, filepath.Join(fullPath, name))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed parse template %s: %w", name, err)
 		}
 		templateMap[name] = tpl
 	}

@@ -36,9 +36,9 @@ func validateInt(name, value string, max int) (int, error) {
 // failedUpload returns index.html page with error message.
 func failedUpload(w http.ResponseWriter, status int, data *IndexData, p *Params) error {
 	w.WriteHeader(status)
-	err := p.Settings.Tpl[cfg.Index].ExecuteTemplate(w, cfg.Index, data)
+	err := p.Settings.Tpl[cfg.IndexTpl].ExecuteTemplate(w, cfg.IndexTpl, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.Index, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.IndexTpl, err)
 	}
 	return nil
 }
@@ -154,9 +154,9 @@ func uploadHandler(ctx context.Context, w http.ResponseWriter, p *Params) error 
 		pwdDisable = true
 	}
 	data := &UploadData{URL: item.GetURL(p.Request, p.Secure).String(), Password: password, PwdDisable: pwdDisable}
-	err = p.Settings.Tpl[cfg.Upload].ExecuteTemplate(w, cfg.Upload, data)
+	err = p.Settings.Tpl[cfg.UploadTpl].ExecuteTemplate(w, cfg.UploadTpl, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.Upload, err)
+		return fmt.Errorf("failed execute template=%s: %w", cfg.UploadTpl, err)
 	}
 	return nil
 }

@@ -55,10 +55,10 @@ func textAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) error
 			fallthrough
 		case errors.Is(err, sql.ErrNoRows):
 			w.WriteHeader(http.StatusNotFound)
-			return encoder.Encode(&errPassKey{Err: "not found"})
+			return encoder.Encode(&ErrItem{Err: "not found"})
 		case errors.Is(err, encrypt.ErrSecret):
 			w.WriteHeader(http.StatusBadRequest)
-			return encoder.Encode(&errPassKey{Err: "failed password or key"})
+			return encoder.Encode(&ErrItem{Err: "failed password or key"})
 		}
 		p.Log.Error("read item key=%v error: %v", key, err)
 		return err

@@ -1,4 +1,16 @@
 {{template "base" .}}
 {{define "content"}}
-<h3>{{ .Key }}</h3>
+
+{{ if .CountText }}
+<form method="POST" action="/api/text" id="text_form" onsubmit="return LoadText(this);">
+    <input type="hidden" id="key" name="key" value="{{.Key}}" required>
+    <div class="mb-3">
+        <input type="password" id="password" name="password" placeholder="secret" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+<div id="text_container_id"></div>
+{{else}}
+{{end}}
+
 {{end}}

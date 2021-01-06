@@ -16,59 +16,66 @@ function HumanSize(bytes) {
     return Math.round(bytes / Math.pow(1024, i)) + ' ' + sizes[i];
 }
 
-function successText(data) {
+function successText(data, withFile) {
     let content = "<h4>Text data</h4><pre>" + data.text + "</pre>";
-    if (data.file !== null) {
-        const method = "LoadFile('" + data.file.name + "', '" + data.file.content_type + "')";
+    if (withFile && (data.file !== null)) {
+        const method = "LoadFile('" + data.file.name + "')";
         content += "<h4>Download file</h4><a href=\"#\" onclick=\"" + method + "\">" + data.file.name + "</a>&nbsp;";
         content += HumanSize(data.file.size);
     }
     return content;
 }
 
-function LoadText(form) {
-    const xhttp = new XMLHttpRequest();
-    const formData = new FormData();
-
+function LoadText(form, withFile) {
+    let myRequest = new Request(form.action);
+    let formData = new FormData();
     formData.append("key", form.key.value);
     formData.append("password", form.password.value);
-    xhttp.onreadystatechange = function () {
-        if (this.readyState !== 4) {
-            return;
-        }
-        const data = JSON.parse(this.responseText);
-        const t = document.getElementById("text_container_id");
-        if (this.status === 200) {
-            t.innerHTML = "<div class='alert alert-success'>" + successText(data) + "</div>";
-        } else {
-            t.innerHTML = "<div class='alert alert-danger'><pre>" + data.error + "</pre></div>";
-        }
-    };
-    xhttp.open(form.method, form.action, true);
-    xhttp.send(formData);
+
+    const myInit = {method: form.method, cache: 'no-store', body: formData}
+    const t = document.getElementById("text_container_id");
+    fetch(myRequest, myInit)
+        .then(response => response.json())
+        .then(result => {
+            if (result.error === undefined) {
+                t.innerHTML = "<div class='alert alert-success'>" + successText(result, withFile) + "</div>";
+            } else {
+                t.innerHTML = "<div class='alert alert-danger'><pre>" + result.error + "</pre></div>";
+            }
+        })
+        .catch(error => {
+            t.innerHTML = "<div class='alert alert-danger'><pre>internal error</pre></div>";
+        });
     return false;
 }
 
-function LoadFile(fileName, contentType) {
+function LoadFile(fileName) {
     const form = document.getElementById("text_form");
-    const xhttp = new XMLHttpRequest();
-    const formData = new FormData();
-
+    let myRequest = new Request('/file');
+    let formData = new FormData();
     formData.append("key", form.key.value);
     formData.append("password", form.password.value);
-    xhttp.onreadystatechange = function () {
-        if (this.readyState !== 4) {
-            return;
-        }
-        if (this.status === 200) {
-            const blob = new Blob([this.response], {type: contentType});
-            const link = document.createElement('a');
-            link.href = window.URL.createObjectURL(blob);
+
+    const t = document.getElementById("file_container_id");
+    const myInit = {method: form.method, cache: 'no-store', body: formData}
+    fetch(myRequest, myInit)
+        .then(response => {
+            if (!response.ok) {
+                response.text().then(errMsg => {
+                    t.innerHTML = "<div class='alert alert-danger'><pre>" + errMsg + "</pre></div>";
+                });
+                throw new Error('file download error');
+            }
+            return response.blob();
+        })
+        .then(myBlob => {
+            let link = document.createElement('a');
+            link.href = URL.createObjectURL(myBlob);
             link.download = fileName;
             link.click();
-        }
-    };
-    xhttp.open(form.method, "/file", false);
-    xhttp.send(formData);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
     return false;
 }

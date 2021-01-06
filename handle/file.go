@@ -57,13 +57,18 @@ func DecodeMeta(fileMeta string) (*FileMeta, error) {
 	return f, nil
 }
 
+func failedDownload(w http.ResponseWriter, code int, msg string) error {
+	w.WriteHeader(code)
+	_, err := fmt.Fprint(w, msg)
+	return err
+}
+
 // fileHandler is handler to return content of the file.
 func fileHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
 	password, key, e := validatePassKey(p)
 	if e != nil {
 		p.Log.Info("password/key validation failed: %v", e.Err)
-		w.WriteHeader(e.code)
-		return nil
+		return failedDownload(w, e.code, "secret validation failed")
 	}
 	// read/decrement fileMeta+file, but decrypt only fileMeta data due to dst=nil
 	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagMeta|db.FlagFile)
@@ -72,25 +77,22 @@ func fileHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
 		case errors.Is(err, db.ErrNoAttempts):
 			fallthrough
 		case errors.Is(err, sql.ErrNoRows):
-			w.WriteHeader(http.StatusNotFound)
-			return nil
+			return failedDownload(w, http.StatusNotFound, "not found")
 		case errors.Is(err, encrypt.ErrSecret):
-			w.WriteHeader(http.StatusBadRequest)
-			return nil
+			return failedDownload(w, http.StatusBadRequest, "secret validation failed")
 		}
 		p.Log.Error("read item file key=%v error: %v", key, err)
-		return err
+		return failedDownload(w, http.StatusInternalServerError, "internal error")
 	}
 	defer item.CheckCounts(p.DelItem)
 	// password is already valid and item was decremented for file and fileMeta
 	if item.FileMeta == "" {
-		w.WriteHeader(http.StatusNoContent)
-		return nil
+		return failedDownload(w, http.StatusNoContent, "no content")
 	}
 	fileMeta, err := DecodeMeta(item.FileMeta)
 	if err != nil {
 		p.Log.Error("fileMeta decode item file key=%v error: %v", key, err)
-		return err
+		return failedDownload(w, http.StatusInternalServerError, "internal error")
 	}
 	w.Header().Set("Content-Type", fileMeta.ResponseContentType())
 	w.Header().Set("Content-Disposition", fileMeta.ResponseContentDisposition())

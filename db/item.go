@@ -32,7 +32,7 @@ var (
 	ErrNoAttempts = errors.New("no more attempts")
 
 	// all decryption flags
-	flagSlice = [3]DecryptFlag{FlagText, FlagMeta, FlagMeta}
+	flagSlice = [3]DecryptFlag{FlagText, FlagMeta, FlagFile}
 )
 
 // Item is base data struct for incoming data.

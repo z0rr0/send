@@ -2,7 +2,7 @@
 {{define "content"}}
 
 {{ if .CountText }}
-<form method="POST" action="/api/text" id="text_form" onsubmit="return LoadText(this);">
+<form method="POST" action="/api/text" id="text_form" onsubmit="return LoadText(this, {{.CountFile}});">
     <input type="hidden" id="key" name="key" value="{{.Key}}" required>
     <div class="mb-3">
         <input type="password" id="password" name="password" placeholder="secret" class="form-control" required>
@@ -10,6 +10,7 @@
     <button type="submit" class="btn btn-primary">Submit</button>
 </form>
 <div id="text_container_id"></div>
+<div id="file_container_id"></div>
 {{else}}
 {{end}}
 

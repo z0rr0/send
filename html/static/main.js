@@ -40,11 +40,11 @@ function LoadText(form, withFile) {
             if (result.error === undefined) {
                 t.innerHTML = "<div class='alert alert-success'>" + successText(result, withFile) + "</div>";
             } else {
-                t.innerHTML = "<div class='alert alert-danger'><pre>" + result.error + "</pre></div>";
+                t.innerHTML = "<div class='alert alert-danger'>" + result.error + "</div>";
             }
         })
         .catch(error => {
-            t.innerHTML = "<div class='alert alert-danger'><pre>internal error</pre></div>";
+            t.innerHTML = "<div class='alert alert-danger'>internal error</div>";
         });
     return false;
 }
@@ -63,7 +63,7 @@ function LoadFile(fileName) {
         .then(response => {
             if (!response.ok) {
                 response.text().then(errMsg => {
-                    t.innerHTML = "<div class='alert alert-danger'><pre>" + errMsg + "</pre></div>";
+                    t.innerHTML = "<div class='alert alert-danger'>" + errMsg + "</div>";
                 });
                 throw new Error('file download error');
             }

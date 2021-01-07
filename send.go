@@ -109,13 +109,14 @@ func main() {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer func() {
+			var checkCode bool
 			if r := recover(); r != nil {
 				reqLogger.Error("request panic: %v", r)
-				code = http.StatusInternalServerError
+				code, checkCode = http.StatusInternalServerError, true
 				reqLogger.Error("stack:\n%v\n", string(debug.Stack()))
 			}
 			reqLogger.Info("%-5v %v\t%-12v\t%v", r.Method, code, time.Since(start), r.URL.String())
-			if code == http.StatusInternalServerError {
+			if checkCode && code == http.StatusInternalServerError {
 				if params.IsAPI() {
 					w.WriteHeader(code)
 					if _, e := fmt.Fprint(w, "{\"error\": \"internal error\"}"); e != nil {
@@ -130,12 +131,7 @@ func main() {
 		if params.IsAPI() {
 			w.Header().Add("Content-Type", "application/json")
 		}
-		e := handle.Main(ctx, w, params)
-		if e != nil {
-			reqLogger.Error("error: %v", e)
-			code = http.StatusInternalServerError
-			return
-		}
+		code = handle.Main(ctx, w, params)
 	})
 	// run GC monitoring
 	gcShutdown := make(chan struct{}) // to close GC monitor

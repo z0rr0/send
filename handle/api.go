@@ -28,9 +28,13 @@ func (v *Version) String() string {
 }
 
 // versionHandler is API handler for app info.
-func versionHandler(_ context.Context, w http.ResponseWriter, p *Params) error {
+func versionHandler(_ context.Context, w http.ResponseWriter, p *Params) (int, error) {
 	encoder := json.NewEncoder(w)
-	return encoder.Encode(p.Version)
+	err := encoder.Encode(p.Version)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
 }
 
 // TextMeta is data struct of API response for text+meta request.
@@ -40,13 +44,16 @@ type TextMeta struct {
 }
 
 // textAPIHandler is API handler to return item's text and file meta info.
-func textAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
+func textAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int, error) {
 	var fileMeta *FileMeta
 	encoder := json.NewEncoder(w)
 	password, key, e := validatePassKey(p)
 	if e != nil {
-		w.WriteHeader(e.code)
-		return encoder.Encode(e)
+		w.WriteHeader(e.Code)
+		if err := encoder.Encode(e); err != nil {
+			return http.StatusInternalServerError, err
+		}
+		return e.Code, nil
 	}
 	item, err := db.Read(ctx, p.DB, key, password, nil, db.FlagText|db.FlagMeta)
 	if err != nil {
@@ -55,21 +62,33 @@ func textAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) error
 			fallthrough
 		case errors.Is(err, sql.ErrNoRows):
 			w.WriteHeader(http.StatusNotFound)
-			return encoder.Encode(&ErrItem{Err: "not found"})
+			err = encoder.Encode(&ErrItem{Err: "not found"})
+			if err != nil {
+				return http.StatusInternalServerError, err
+			}
+			return http.StatusNotFound, nil
 		case errors.Is(err, encrypt.ErrSecret):
 			w.WriteHeader(http.StatusBadRequest)
-			return encoder.Encode(&ErrItem{Err: "failed password or key"})
+			err = encoder.Encode(&ErrItem{Err: "failed password or key"})
+			if err != nil {
+				return http.StatusInternalServerError, err
+			}
+			return http.StatusBadRequest, nil
 		}
 		p.Log.Error("read item key=%v error: %v", key, err)
-		return err
+		return http.StatusInternalServerError, err
 	}
 	defer item.CheckCounts(p.DelItem)
 	if item.FileMeta != "" {
 		fileMeta, err = DecodeMeta(item.FileMeta)
 		if err != nil {
 			p.Log.Error("fileMeta decode item key=%v error: %v", key, err)
-			return err
+			return http.StatusInternalServerError, err
 		}
 	}
-	return encoder.Encode(&TextMeta{Text: item.Text, File: fileMeta})
+	err = encoder.Encode(&TextMeta{Text: item.Text, File: fileMeta})
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/z0rr0/send/logging"
 )
 
-type handlerType func(context.Context, http.ResponseWriter, *Params) error
+type handlerType func(context.Context, http.ResponseWriter, *Params) (int, error)
 
 // Params is a struct with common handling arguments.
 // Except Request field, it is read-only struct.
@@ -51,13 +51,13 @@ func (iData *IndexData) HasError() bool {
 type ErrItem struct {
 	Err  string `json:"error"`
 	Key  string `json:"-"`
+	Code int    `json:"-"`
 	ajax bool
-	code int
 }
 
 // Error returns a string representation of the error.
 func (e *ErrItem) Error() string {
-	return fmt.Sprintf("%d %s", e.code, e.Err)
+	return fmt.Sprintf("%d %s", e.Code, e.Err)
 }
 
 // HasKey returns true if the item has a filled key field.
@@ -67,42 +67,45 @@ func (e *ErrItem) HasKey() bool {
 
 func validatePassKey(p *Params) (string, string, *ErrItem) {
 	if p.Request.Method != "POST" {
-		return "", "", &ErrItem{Err: "failed HTTP method", code: http.StatusMethodNotAllowed}
+		return "", "", &ErrItem{Err: "failed HTTP method", Code: http.StatusMethodNotAllowed}
 	}
 	password := p.Request.PostFormValue("password")
 	if password == "" {
-		return "", "", &ErrItem{Err: "empty password", code: http.StatusBadRequest}
+		return "", "", &ErrItem{Err: "empty password", Code: http.StatusBadRequest}
 	}
 	key := p.Request.PostFormValue("key")
 	if key == "" {
-		return "", "", &ErrItem{Err: "empty key", code: http.StatusBadRequest}
+		return "", "", &ErrItem{Err: "empty key", Code: http.StatusBadRequest}
 	}
 	if _, err := uuid.Parse(key); err != nil {
-		return "", "", &ErrItem{Err: "bad key", code: http.StatusBadRequest}
+		return "", "", &ErrItem{Err: "bad key", Code: http.StatusBadRequest}
 	}
 	return password, key, nil
 }
 
 // downloadErrHandler is a handler method to return some error page/message.
-func downloadErrHandler(w http.ResponseWriter, p *Params, ei *ErrItem) error {
+func downloadErrHandler(w http.ResponseWriter, p *Params, ei *ErrItem) (int, error) {
 	var err error
 	if ei == nil {
-		ei = &ErrItem{Err: "Not found", code: 404}
+		ei = &ErrItem{Err: "Not found", Code: 404}
 	}
-	w.WriteHeader(ei.code)
+	w.WriteHeader(ei.Code)
 	if ei.ajax {
 		_, err = fmt.Fprint(w, ei.Err)
-		return err
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		return ei.Code, nil
 	}
 	err = p.Settings.Tpl[cfg.ErrorTpl].ExecuteTemplate(w, cfg.ErrorTpl, ei)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.ErrorTpl, err)
+		return http.StatusInternalServerError, fmt.Errorf("failed execute template=%s: %w", cfg.ErrorTpl, err)
 	}
-	return nil
+	return ei.Code, nil
 }
 
 // Main is a common HTTP handler.
-func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
+func Main(ctx context.Context, w http.ResponseWriter, p *Params) int {
 	var handlers = map[string]handlerType{
 		"/":            indexHandler,
 		"/upload":      uploadHandler,
@@ -115,15 +118,20 @@ func Main(ctx context.Context, w http.ResponseWriter, p *Params) error {
 		// download by UUID, 32 hex: 8-4-4-4-12
 		handler = downloadHandler
 	}
-	return handler(ctx, w, p)
+	code, err := handler(ctx, w, p)
+	if err != nil {
+		p.Log.Error("error: %v", err)
+		return http.StatusInternalServerError
+	}
+	return code
 }
 
 // indexHandler is a title web page.
-func indexHandler(_ context.Context, w http.ResponseWriter, p *Params) error {
+func indexHandler(_ context.Context, w http.ResponseWriter, p *Params) (int, error) {
 	data := &IndexData{MaxSize: p.Settings.Size}
 	err := p.Settings.Tpl[cfg.IndexTpl].ExecuteTemplate(w, cfg.IndexTpl, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.IndexTpl, err)
+		return 0, fmt.Errorf("failed execute template=%s: %w", cfg.IndexTpl, err)
 	}
-	return nil
+	return http.StatusOK, nil
 }

@@ -20,6 +20,12 @@ type UploadData struct {
 	PwdDisable bool
 }
 
+type validUploadData struct {
+	item     *db.Item
+	password string
+	code     int
+}
+
 // validateInt checks that field is in the range [1; max].
 func validateInt(name, value string, max int) (int, error) {
 	const min = 1
@@ -34,8 +40,8 @@ func validateInt(name, value string, max int) (int, error) {
 }
 
 // failedUpload returns index.html page with error message.
-func failedUpload(w http.ResponseWriter, status int, data *IndexData, p *Params) error {
-	w.WriteHeader(status)
+func failedUpload(w http.ResponseWriter, code int, data *IndexData, p *Params) error {
+	w.WriteHeader(code)
 	err := p.Settings.Tpl[cfg.IndexTpl].ExecuteTemplate(w, cfg.IndexTpl, data)
 	if err != nil {
 		return fmt.Errorf("failed execute template=%s: %w", cfg.IndexTpl, err)
@@ -43,30 +49,34 @@ func failedUpload(w http.ResponseWriter, status int, data *IndexData, p *Params)
 	return nil
 }
 
-func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) {
+// validateUpload checks incoming request data
+// and returns new db.Item pointer, password and validation error.
+func validateUpload(w http.ResponseWriter, p *Params) (*validUploadData, error) {
 	var (
 		fileMeta             string
 		autoPassword         bool
 		countText, countFile int
 	)
 	data := &IndexData{MaxSize: p.Settings.Size}
+	vd := &validUploadData{code: http.StatusBadRequest}
 	if p.Request.Method != "POST" {
 		data.Error = "failed HTTP method"
-		return nil, "", failedUpload(w, http.StatusMethodNotAllowed, data, p)
+		vd.code = http.StatusMethodNotAllowed
+		return vd, failedUpload(w, vd.code, data, p)
 	}
 	// file
 	f, h, err := p.Request.FormFile("file")
 	if err != nil {
 		if !errors.Is(err, http.ErrMissingFile) {
 			data.Error = "failed file upload"
-			return nil, "", failedUpload(w, http.StatusBadRequest, data, p)
+			return vd, failedUpload(w, vd.code, data, p)
 		}
 		// ErrMissingFile will be checked later with text-field
 	} else {
 		fm := &FileMeta{Name: h.Filename, Size: h.Size, ContentType: h.Header.Get("Content-Type")}
 		fileMeta, err = fm.Encode()
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 	}
 	defer func() {
@@ -83,19 +93,19 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 	text := p.Request.PostFormValue("text")
 	if fileMeta == "" && text == "" {
 		data.Error = "empty text and file fields"
-		return nil, "", failedUpload(w, http.StatusBadRequest, data, p)
+		return vd, failedUpload(w, vd.code, data, p)
 	}
 	// ttl
 	ttl, err := validateInt("TTL", p.Request.PostFormValue("ttl"), p.Settings.TTL)
 	if err != nil {
 		data.Error = "incorrect TTL"
-		return nil, "", failedUpload(w, http.StatusBadRequest, data, p)
+		return vd, failedUpload(w, vd.code, data, p)
 	}
 	// times
 	times, err := validateInt("times", p.Request.PostFormValue("times"), p.Settings.Times)
 	if err != nil {
 		data.Error = "incorrect times"
-		return nil, "", failedUpload(w, http.StatusBadRequest, data, p)
+		return vd, failedUpload(w, vd.code, data, p)
 	}
 	// password
 	password := p.Request.PostFormValue("password")
@@ -129,34 +139,41 @@ func validateUpload(w http.ResponseWriter, p *Params) (*db.Item, string, error) 
 	}
 	err = item.Encrypt(password, f)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed encryption: %w", err)
+		return nil, fmt.Errorf("failed encryption: %w", err)
 	}
-	return item, password, nil
+	vd.item = item
+	vd.code = http.StatusCreated
+	vd.password = password
+	return vd, nil
 }
 
 // uploadHandler gets incoming data and saves it to the storage.
-func uploadHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
+func uploadHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int, error) {
 	var pwdDisable bool
-	item, password, err := validateUpload(w, p)
+	validData, err := validateUpload(w, p)
 	if err != nil {
-		return err
+		return http.StatusInternalServerError, err
 	}
-	if item == nil {
+	if validData.item == nil {
 		// failed validation, it's already handled
-		return nil
+		return validData.code, nil
 	}
-	err = item.Save(ctx, p.DB)
+	err = validData.item.Save(ctx, p.DB)
 	if err != nil {
-		return err
+		return http.StatusInternalServerError, err
 	}
-	if !item.AutoPassword {
-		password = "*****"
+	if !validData.item.AutoPassword {
+		validData.password = "*****"
 		pwdDisable = true
 	}
-	data := &UploadData{URL: item.GetURL(p.Request, p.Secure).String(), Password: password, PwdDisable: pwdDisable}
+	data := &UploadData{
+		URL:        validData.item.GetURL(p.Request, p.Secure).String(),
+		Password:   validData.password,
+		PwdDisable: pwdDisable,
+	}
 	err = p.Settings.Tpl[cfg.UploadTpl].ExecuteTemplate(w, cfg.UploadTpl, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.UploadTpl, err)
+		return http.StatusInternalServerError, fmt.Errorf("failed execute template=%s: %w", cfg.UploadTpl, err)
 	}
-	return nil
+	return validData.code, nil
 }

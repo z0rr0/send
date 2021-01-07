@@ -22,7 +22,7 @@ type DownloadData struct {
 }
 
 // downloadHandler generates the download page.
-func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) error {
+func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int, error) {
 	key := strings.Trim(p.Request.URL.Path, "/ ")
 	_, err := uuid.Parse(key)
 	if err != nil {
@@ -35,7 +35,7 @@ func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) erro
 			return downloadErrHandler(w, p, nil)
 		}
 		p.Log.Error("check item exists %s: %v", key, err)
-		return downloadErrHandler(w, p, &ErrItem{Err: "Internal error", code: 500})
+		return downloadErrHandler(w, p, &ErrItem{Err: "Internal error", Code: 500})
 	}
 	data := &DownloadData{
 		Key:       key,
@@ -44,7 +44,7 @@ func downloadHandler(ctx context.Context, w http.ResponseWriter, p *Params) erro
 	}
 	err = p.Settings.Tpl[cfg.DownloadTpl].ExecuteTemplate(w, cfg.DownloadTpl, data)
 	if err != nil {
-		return fmt.Errorf("failed execute template=%s: %w", cfg.DownloadTpl, err)
+		return http.StatusInternalServerError, fmt.Errorf("failed execute template=%s: %w", cfg.DownloadTpl, err)
 	}
-	return nil
+	return http.StatusOK, nil
 }

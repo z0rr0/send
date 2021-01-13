@@ -105,7 +105,7 @@ func main() {
 		reqLogger.Info("request\t%s", r.URL.String())
 		params := &handle.Params{
 			Log: reqLogger, DB: c.Storage.Db, Settings: &c.Settings, Request: r,
-			Version: ver, DelItem: delItem, Storage: c.Storage.Dir, Secure: c.Server.Secure,
+			Version: ver, DelItem: delItem, Storage: &c.Storage, Secure: c.Server.Secure,
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer func() {

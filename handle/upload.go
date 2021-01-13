@@ -73,6 +73,12 @@ func validateUpload(w http.ResponseWriter, p *Params) (*validUploadData, error) 
 		}
 		// ErrMissingFile will be checked later with text-field
 	} else {
+		err = p.Storage.Limit(h.Size)
+		if err != nil {
+			data.Error = "no space in file storage"
+			p.Log.Error("%s: %v", data.Error, err)
+			return vd, failedUpload(w, vd.code, data, p)
+		}
 		fm := &FileMeta{Name: h.Filename, Size: h.Size, ContentType: h.Header.Get("Content-Type")}
 		fileMeta, err = fm.Encode()
 		if err != nil {
@@ -134,7 +140,7 @@ func validateUpload(w http.ResponseWriter, p *Params) (*validUploadData, error) 
 		Created:      now,
 		Updated:      now,
 		Expired:      now.Add(time.Duration(ttl) * time.Second),
-		Storage:      p.Storage,
+		Storage:      p.Storage.Dir,
 		AutoPassword: autoPassword,
 	}
 	err = item.Encrypt(password, f)

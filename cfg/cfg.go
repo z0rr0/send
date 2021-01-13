@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite3 driver package
@@ -33,16 +34,49 @@ type server struct {
 	Secure  bool   `toml:"secure"`
 }
 
-type storage struct {
+// Storage is storage configuration params struct.
+type Storage struct {
 	File    string `toml:"file"`
 	Dir     string `toml:"dir"`
 	Timeout int    `toml:"timeout"`
+	Size    int64  `toml:"size"`
+	limit   int64
 	Db      *sql.DB
+	m       sync.Mutex
 }
 
-// String returns base info about storage.
-func (s *storage) String() string {
-	return fmt.Sprintf("database=%s, files=%s", s.File, s.Dir)
+// String returns base info about Storage.
+func (s *Storage) String() string {
+	return fmt.Sprintf("database=%s, files=%s, limit=%d/%d", s.File, s.Dir, s.limit, s.Size)
+}
+
+// Limit updates storage limit and returns and error if it's reached.
+func (s *Storage) Limit(v int64) error {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	limit := s.limit + v
+	if limit > s.Size {
+		return fmt.Errorf("storage limit=%d is reached [%v + %v]", s.Size, s.limit, v)
+	}
+	s.limit = limit
+	return nil
+}
+
+// initLimits sets initial limit by current storage state.
+func (s *Storage) initLimits() error {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	files, err := ioutil.ReadDir(s.Dir)
+	if err != nil {
+		return err
+	}
+	s.Size = s.Size << 20 // megabytes -> bytes
+	for _, f := range files {
+		s.limit += f.Size()
+	}
+	return nil
 }
 
 // Settings is base service settings.
@@ -62,7 +96,7 @@ type Settings struct {
 // Config is a main configuration structure.
 type Config struct {
 	Server   server   `toml:"server"`
-	Storage  storage  `toml:"storage"`
+	Storage  Storage  `toml:"Storage"`
 	Settings Settings `toml:"settings"`
 }
 
@@ -128,6 +162,10 @@ func (c *Config) isValid() error {
 		return err
 	}
 	c.Storage.Dir = fullPath
+	err = c.Storage.initLimits()
+	if err != nil {
+		return err
+	}
 
 	fullPath, err = checkDirectory(c.Settings.Static, userReadSearch)
 	if err != nil {
@@ -135,7 +173,8 @@ func (c *Config) isValid() error {
 	}
 	c.Settings.Static = fullPath
 
-	err = isGreaterThanZero(c.Storage.Timeout, "storage.timeout", err)
+	err = isGreaterThanZero(c.Storage.Timeout, "Storage.timeout", err)
+	err = isGreaterThanZeroInt64(c.Storage.Size, "Storage.size", err)
 	err = isGreaterThanZero(c.Server.Timeout, "server.timeout", err)
 	err = isGreaterThanZero(c.Server.Port, "server.port", err)
 	err = isGreaterThanZero(c.Settings.TTL, "settings.ttl", err)
@@ -180,6 +219,18 @@ func New(filename string) (*Config, error) {
 
 // isGreaterThanZero returns error if err is already error or x is less than 1.
 func isGreaterThanZero(x int, name string, err error) error {
+	if err != nil {
+		return err
+	}
+	if x < 1 {
+		return fmt.Errorf("%s=%d should be greater than 1", name, x)
+	}
+	return nil
+}
+
+// isGreaterThanZeroInt64 is same as isGreaterThanZero but for int64.
+// We wait go generics :(
+func isGreaterThanZeroInt64(x int64, name string, err error) error {
 	if err != nil {
 		return err
 	}

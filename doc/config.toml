@@ -8,6 +8,7 @@ secure = false     # use https
 file = "db.sqlite" # database file
 dir = "storage"    # files storage directory
 timeout = 60       # db operation timeout (seconds)
+size = 100         # max storage size (Mb)
 
 [settings]
 ttl = 604800           # max time to live (seconds) - 7 days

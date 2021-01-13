@@ -27,7 +27,7 @@ type Params struct {
 	Request  *http.Request
 	Version  *Version
 	DelItem  chan<- db.Item
-	Storage  string
+	Storage  *cfg.Storage
 	Secure   bool
 }
 

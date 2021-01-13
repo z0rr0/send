@@ -9,7 +9,7 @@ import (
 )
 
 // Alphabet is all allowed for password generation symbols
-const Alphabet = `#%&+-3479<=>?@CFHJKLMNPRTVWX^bcdfghjkmnpqrstvwxz`
+const Alphabet = `#%&+-3479@CFHJKLMNPRTVWXbcdfghjkmnpqrstvwxz`
 
 // CryptoRandSource represents a source of uniformly-distributed random int64 values in the range [0, 1<<63).
 type CryptoRandSource struct{}

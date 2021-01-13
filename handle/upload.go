@@ -2,6 +2,7 @@ package handle
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -40,9 +41,14 @@ func validateInt(name, value string, max int) (int, error) {
 }
 
 // failedUpload returns index.html page with error message.
-func failedUpload(w http.ResponseWriter, code int, data *IndexData, p *Params) error {
+func failedUpload(w http.ResponseWriter, code int, data *IndexData, p *Params, isAPI bool) error {
+	var err error
 	w.WriteHeader(code)
-	err := p.Settings.Tpl[cfg.IndexTpl].ExecuteTemplate(w, cfg.IndexTpl, data)
+	if isAPI {
+		encoder := json.NewEncoder(w)
+		return encoder.Encode(&ErrItem{Err: data.Error})
+	}
+	err = p.Settings.Tpl[cfg.IndexTpl].ExecuteTemplate(w, cfg.IndexTpl, data)
 	if err != nil {
 		return fmt.Errorf("failed execute template=%s: %w", cfg.IndexTpl, err)
 	}
@@ -51,7 +57,7 @@ func failedUpload(w http.ResponseWriter, code int, data *IndexData, p *Params) e
 
 // validateUpload checks incoming request data
 // and returns new db.Item pointer, password and validation error.
-func validateUpload(w http.ResponseWriter, p *Params) (*validUploadData, error) {
+func validateUpload(w http.ResponseWriter, p *Params, isAPI bool) (*validUploadData, error) {
 	var (
 		fileMeta             string
 		autoPassword         bool
@@ -62,14 +68,14 @@ func validateUpload(w http.ResponseWriter, p *Params) (*validUploadData, error) 
 	if p.Request.Method != "POST" {
 		data.Error = "failed HTTP method"
 		vd.code = http.StatusMethodNotAllowed
-		return vd, failedUpload(w, vd.code, data, p)
+		return vd, failedUpload(w, vd.code, data, p, isAPI)
 	}
 	// file
 	f, h, err := p.Request.FormFile("file")
 	if err != nil {
 		if !errors.Is(err, http.ErrMissingFile) {
 			data.Error = "failed file upload"
-			return vd, failedUpload(w, vd.code, data, p)
+			return vd, failedUpload(w, vd.code, data, p, isAPI)
 		}
 		// ErrMissingFile will be checked later with text-field
 	} else {
@@ -77,7 +83,7 @@ func validateUpload(w http.ResponseWriter, p *Params) (*validUploadData, error) 
 		if err != nil {
 			data.Error = "no space in file storage"
 			p.Log.Error("%s: %v", data.Error, err)
-			return vd, failedUpload(w, vd.code, data, p)
+			return vd, failedUpload(w, vd.code, data, p, isAPI)
 		}
 		fm := &FileMeta{Name: h.Filename, Size: h.Size, ContentType: h.Header.Get("Content-Type")}
 		fileMeta, err = fm.Encode()
@@ -99,19 +105,19 @@ func validateUpload(w http.ResponseWriter, p *Params) (*validUploadData, error) 
 	text := p.Request.PostFormValue("text")
 	if fileMeta == "" && text == "" {
 		data.Error = "empty text and file fields"
-		return vd, failedUpload(w, vd.code, data, p)
+		return vd, failedUpload(w, vd.code, data, p, isAPI)
 	}
 	// ttl
 	ttl, err := validateInt("TTL", p.Request.PostFormValue("ttl"), p.Settings.TTL)
 	if err != nil {
 		data.Error = "incorrect TTL"
-		return vd, failedUpload(w, vd.code, data, p)
+		return vd, failedUpload(w, vd.code, data, p, isAPI)
 	}
 	// times
 	times, err := validateInt("times", p.Request.PostFormValue("times"), p.Settings.Times)
 	if err != nil {
 		data.Error = "incorrect times"
-		return vd, failedUpload(w, vd.code, data, p)
+		return vd, failedUpload(w, vd.code, data, p, isAPI)
 	}
 	// password
 	password := p.Request.PostFormValue("password")
@@ -156,7 +162,7 @@ func validateUpload(w http.ResponseWriter, p *Params) (*validUploadData, error) 
 // uploadHandler gets incoming data and saves it to the storage.
 func uploadHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int, error) {
 	var pwdDisable bool
-	validData, err := validateUpload(w, p)
+	validData, err := validateUpload(w, p, false)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

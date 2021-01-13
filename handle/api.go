@@ -92,3 +92,14 @@ func textAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int,
 	}
 	return http.StatusOK, nil
 }
+
+// TextMeta is data struct of API response for text+meta request.
+type UploadResult struct {
+	URL string    `json:"url"`
+	Password string `json:"password"`
+}
+// TODO: add /api/upload
+
+func uploadAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int, error) {
+	return 0, nil
+}

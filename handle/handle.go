@@ -112,6 +112,8 @@ func Main(ctx context.Context, w http.ResponseWriter, p *Params) int {
 		"/file":        fileHandler,
 		"/api/version": versionHandler,
 		"/api/text":    textAPIHandler,
+		"/api/upload":  uploadAPIHandler,
+		// "/UUID":     downloadHandler,
 	}
 	handler, ok := handlers[p.Request.URL.Path]
 	if !ok {

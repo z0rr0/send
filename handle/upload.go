@@ -16,9 +16,15 @@ import (
 
 // UploadData is upload result page data.
 type UploadData struct {
-	URL        string
-	Password   string
-	PwdDisable bool
+	URL        string `json:"url"`
+	Password   string `json:"password"`
+	PwdDisable bool   `json:"pwd_disable"`
+	code       int
+}
+
+// isValid returns true if validation is ok.
+func (u *UploadData) isValid() bool {
+	return u.code >= http.StatusOK && u.code < http.StatusMultipleChoices
 }
 
 type validUploadData struct {
@@ -159,33 +165,41 @@ func validateUpload(w http.ResponseWriter, p *Params, isAPI bool) (*validUploadD
 	return vd, nil
 }
 
-// uploadHandler gets incoming data and saves it to the storage.
-func uploadHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int, error) {
-	var pwdDisable bool
-	validData, err := validateUpload(w, p, false)
+// uploadCommon is a handler for API and web upload methods.
+func uploadCommon(ctx context.Context, w http.ResponseWriter, p *Params, isAPI bool) (*UploadData, error) {
+	validData, err := validateUpload(w, p, isAPI)
 	if err != nil {
-		return http.StatusInternalServerError, err
+		return nil, err
 	}
+	data := &UploadData{code: validData.code}
 	if validData.item == nil {
 		// failed validation, it's already handled
-		return validData.code, nil
+		return data, nil
 	}
 	err = validData.item.Save(ctx, p.DB)
 	if err != nil {
-		return http.StatusInternalServerError, err
+		return nil, err
 	}
 	if !validData.item.AutoPassword {
-		validData.password = "*****"
-		pwdDisable = true
+		data.Password = "*****"
+		data.PwdDisable = true
 	}
-	data := &UploadData{
-		URL:        validData.item.GetURL(p.Request, p.Secure).String(),
-		Password:   validData.password,
-		PwdDisable: pwdDisable,
+	data.URL = validData.item.GetURL(p.Request, p.Secure).String()
+	return data, nil
+}
+
+// uploadHandler gets incoming data and saves it to the storage.
+func uploadHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int, error) {
+	data, err := uploadCommon(ctx, w, p, false)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	if !data.isValid() {
+		return data.code, nil
 	}
 	err = p.Settings.Tpl[cfg.UploadTpl].ExecuteTemplate(w, cfg.UploadTpl, data)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed execute template=%s: %w", cfg.UploadTpl, err)
 	}
-	return validData.code, nil
+	return data.code, nil
 }

@@ -107,6 +107,8 @@ func main() {
 			Log: reqLogger, DB: c.Storage.Db, Settings: &c.Settings, Request: r,
 			Version: ver, DelItem: delItem, Storage: &c.Storage, Secure: c.Server.Secure,
 		}
+		r.BasicAuth()
+
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer func() {
 			var checkCode bool

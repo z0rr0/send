@@ -93,13 +93,20 @@ func textAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int,
 	return http.StatusOK, nil
 }
 
-// TextMeta is data struct of API response for text+meta request.
-type UploadResult struct {
-	URL string    `json:"url"`
-	Password string `json:"password"`
-}
-// TODO: add /api/upload
-
+// uploadAPIHandler uploads data using API request.
 func uploadAPIHandler(ctx context.Context, w http.ResponseWriter, p *Params) (int, error) {
-	return 0, nil
+	data, err := uploadCommon(ctx, w, p, true)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	if !data.isValid() {
+		// already handled
+		return data.code, nil
+	}
+	encoder := json.NewEncoder(w)
+	err = encoder.Encode(data)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return data.code, nil
 }

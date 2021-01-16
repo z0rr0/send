@@ -171,7 +171,7 @@ func uploadCommon(ctx context.Context, w http.ResponseWriter, p *Params, isAPI b
 	if err != nil {
 		return nil, err
 	}
-	data := &UploadData{code: validData.code}
+	data := &UploadData{code: validData.code, Password: validData.password}
 	if validData.item == nil {
 		// failed validation, it's already handled
 		return data, nil

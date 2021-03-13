@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"runtime/debug"
 	"sync"
 
 	"github.com/google/uuid"
@@ -66,7 +65,6 @@ func (l *Log) Info(format string, a ...interface{}) {
 // Error is logger error wrapper. It adds request ID.
 func (l *Log) Error(format string, a ...interface{}) {
 	f, v := "[%s] "+format, l.vars(a)
-	fmt.Println("xaz", string(debug.Stack()))
 	logError.Printf(f, v...)
 }
 

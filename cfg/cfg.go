@@ -7,6 +7,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -272,6 +273,11 @@ func parseTemplates(t *TemplateEntry) (map[string]*template.Template, error) {
 		tpl, err := t.Parse(name)
 		if err != nil {
 			return nil, fmt.Errorf("failed parse template %s: %w", name, err)
+		}
+		// validate the template to detect problems during start (as soon as possible)
+		err = tpl.ExecuteTemplate(io.Discard, name, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed validate execution template %s: %w", name, err)
 		}
 		templateMap[name] = tpl
 	}

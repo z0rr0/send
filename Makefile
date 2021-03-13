@@ -72,6 +72,7 @@ clean:
 start: build
 	@test ! -f $(PIDFILE) || { echo "ERROR: pid file already exists $(PIDFILE)"; false; }
 	@-echo ">>> starting $(TARGET)"
+	@-echo "configuration $(RUN_CFG)"
 	@$(PWD)/$(TARGET) -config $(RUN_CFG) -log $(LOG_FILE) & echo $$! > $(PIDFILE)
 	@-cat $(PIDFILE)
 #	@-grep -A 2 "server" $(RUN_CFG)

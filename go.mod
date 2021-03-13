@@ -1,6 +1,6 @@
 module github.com/z0rr0/send
 
-go 1.15
+go 1.16
 
 require (
 	github.com/google/uuid v1.1.3

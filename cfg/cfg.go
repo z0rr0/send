@@ -92,7 +92,7 @@ type Settings struct {
 	PassLen   int                           `toml:"passlen"`
 	Shutdown  int                           `toml:"shutdown"`
 	Templates string                        `toml:"templates"`
-	Static    string                        `toml:"static"`
+	//Static    string                        `toml:"static"`
 	Tpl       map[string]*template.Template `toml:"-"`
 }
 
@@ -169,12 +169,6 @@ func (c *Config) isValid() error {
 	if err != nil {
 		return err
 	}
-
-	fullPath, err = checkDirectory(c.Settings.Static, userReadSearch)
-	if err != nil {
-		return err
-	}
-	c.Settings.Static = fullPath
 
 	err = isGreaterThanZero(c.Storage.Timeout, "Storage.timeout", err)
 	err = isGreaterThanZeroInt64(c.Storage.Size, "Storage.size", err)

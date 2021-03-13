@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -35,6 +37,9 @@ var (
 	BuildDate = ""
 	// GoVersion is runtime Go language version
 	GoVersion = runtime.Version()
+
+	//go:embed html/static
+	staticFiles embed.FS
 )
 
 func versionInfo(ver *handle.Version) string {
@@ -95,9 +100,12 @@ func main() {
 		ErrorLog:       logging.ErrorLog(),
 	}
 	logger.Info("\n%v\n%s\nlisten addr: %v", info, c.Storage.String(), srv.Addr)
-	logger.Info("static=%v", c.Settings.Static)
+	staticFS, err := fs.Sub(staticFiles, "html/static")
+	if err != nil {
+		panic(err)
+	}
+	fileServer := http.FileServer(http.FS(staticFS))
 
-	fileServer := http.FileServer(http.Dir(c.Settings.Static))
 	http.Handle("/static/", http.StripPrefix("/static", fileServer))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		start, code := time.Now(), http.StatusOK

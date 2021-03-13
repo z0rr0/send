@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -68,13 +67,17 @@ func (s *Storage) initLimits() error {
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	files, err := ioutil.ReadDir(s.Dir)
+	dirEntries, err := os.ReadDir(s.Dir)
 	if err != nil {
 		return err
 	}
 	s.Size = s.Size << 20 // megabytes -> bytes
-	for _, f := range files {
-		s.limit += f.Size()
+	for _, dirEntry := range dirEntries {
+		fileInfo, e := dirEntry.Info()
+		if e != nil {
+			return e
+		}
+		s.limit += fileInfo.Size()
 	}
 	return nil
 }
@@ -196,7 +199,7 @@ func New(filename string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config existing: %w", err)
 	}
-	data, err := ioutil.ReadFile(fullPath)
+	data, err := os.ReadFile(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("config read: %w", err)
 	}

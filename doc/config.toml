@@ -18,5 +18,3 @@ salt = "abc"           # additional key salt (replace it by a long random string
 gc = 10                # "garbage collector" timeout (seconds)
 passlen = 15           # length for automatically created passwords
 shutdown = 5           # shutdown server timeout (seconds)
-templates = "html"     # folder with HTML templates
-static = "html/static" # folder with static files, URL "/static/*"

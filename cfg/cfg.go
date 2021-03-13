@@ -4,6 +4,7 @@ package cfg
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
 	"html/template"
 	"net"
@@ -42,6 +43,17 @@ type Storage struct {
 	limit   int64
 	Db      *sql.DB
 	m       sync.Mutex
+}
+
+// TemplateEntry is a struct to handle embeded templates parsing.
+type TemplateEntry struct {
+	Dir string
+	Fs  embed.FS
+}
+
+// Parse creates a html template.
+func (t *TemplateEntry) Parse(name string) (*template.Template, error) {
+	return template.ParseFS(t.Fs, filepath.Join(t.Dir, BaseTpl), filepath.Join(t.Dir, name))
 }
 
 // String returns base info about Storage.
@@ -84,16 +96,14 @@ func (s *Storage) initLimits() error {
 
 // Settings is base service settings.
 type Settings struct {
-	TTL       int                           `toml:"ttl"`
-	Times     int                           `toml:"times"`
-	Size      int                           `toml:"size"`
-	Salt      string                        `toml:"salt"`
-	GC        int                           `toml:"gc"`
-	PassLen   int                           `toml:"passlen"`
-	Shutdown  int                           `toml:"shutdown"`
-	Templates string                        `toml:"templates"`
-	//Static    string                        `toml:"static"`
-	Tpl       map[string]*template.Template `toml:"-"`
+	TTL      int                           `toml:"ttl"`
+	Times    int                           `toml:"times"`
+	Size     int                           `toml:"size"`
+	Salt     string                        `toml:"salt"`
+	GC       int                           `toml:"gc"`
+	PassLen  int                           `toml:"passlen"`
+	Shutdown int                           `toml:"shutdown"`
+	Tpl      map[string]*template.Template `toml:"-"`
 }
 
 // Config is a main configuration structure.
@@ -144,23 +154,18 @@ func (c *Config) Shutdown() time.Duration {
 }
 
 // isValid checks the Settings are valid.
-func (c *Config) isValid() error {
+func (c *Config) isValid(t *TemplateEntry) error {
 	const (
 		userReadWrite  os.FileMode = 0600
 		userReadSearch os.FileMode = 0500
 	)
-	fullPath, err := checkDirectory(c.Settings.Templates, userReadSearch)
+	tpl, err := parseTemplates(t)
 	if err != nil {
 		return err
 	}
-	tpl, err := parseTemplates(fullPath)
-	if err != nil {
-		return err
-	}
-	c.Settings.Templates = fullPath
 	c.Settings.Tpl = tpl
 
-	fullPath, err = checkDirectory(c.Storage.Dir, userReadWrite)
+	fullPath, err := checkDirectory(c.Storage.Dir, userReadWrite)
 	if err != nil {
 		return err
 	}
@@ -184,7 +189,7 @@ func (c *Config) isValid() error {
 }
 
 // New returns new configuration.
-func New(filename string) (*Config, error) {
+func New(filename string, t *TemplateEntry) (*Config, error) {
 	fullPath, err := filepath.Abs(strings.Trim(filename, " "))
 	if err != nil {
 		return nil, fmt.Errorf("config file: %w", err)
@@ -202,7 +207,7 @@ func New(filename string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config parsing: %w", err)
 	}
-	err = c.isValid()
+	err = c.isValid(t)
 	if err != nil {
 		return nil, fmt.Errorf("config validation: %w", err)
 	}
@@ -256,13 +261,15 @@ func checkDirectory(name string, mode os.FileMode) (string, error) {
 	return fullPath, nil
 }
 
-// parseTemplates parses expected templates files.
-func parseTemplates(fullPath string) (map[string]*template.Template, error) {
-	base := filepath.Join(fullPath, BaseTpl)
+func parseTemplates(t *TemplateEntry) (map[string]*template.Template, error) {
+	if t == nil {
+		// not configured embeded templates
+		return nil, nil
+	}
 	templates := []string{IndexTpl, UploadTpl, DownloadTpl, ErrorTpl}
 	templateMap := make(map[string]*template.Template)
 	for _, name := range templates {
-		tpl, err := template.ParseFiles(base, filepath.Join(fullPath, name))
+		tpl, err := t.Parse(name)
 		if err != nil {
 			return nil, fmt.Errorf("failed parse template %s: %w", name, err)
 		}

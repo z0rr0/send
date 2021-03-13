@@ -40,6 +40,8 @@ var (
 
 	//go:embed html/static
 	staticFiles embed.FS
+	//go:embed html/*.html
+	tpls embed.FS
 )
 
 func versionInfo(ver *handle.Version) string {
@@ -80,7 +82,7 @@ func main() {
 	}
 	logger := logging.New("main")
 	// read config and check html templates
-	c, err := cfg.New(*config)
+	c, err := cfg.New(*config, &cfg.TemplateEntry{Dir: "html", Fs: tpls})
 	if err != nil {
 		panic(err)
 	}
@@ -105,7 +107,6 @@ func main() {
 		panic(err)
 	}
 	fileServer := http.FileServer(http.FS(staticFS))
-
 	http.Handle("/static/", http.StripPrefix("/static", fileServer))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		start, code := time.Now(), http.StatusOK
@@ -120,8 +121,8 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer func() {
 			var checkCode bool
-			if r := recover(); r != nil {
-				reqLogger.Error("request panic: %v", r)
+			if rc := recover(); rc != nil {
+				reqLogger.Error("request panic: %v", rc)
 				code, checkCode = http.StatusInternalServerError, true
 				reqLogger.Error("stack:\n%v\n", string(debug.Stack()))
 			}

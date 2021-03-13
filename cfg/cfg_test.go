@@ -18,11 +18,11 @@ var (
 )
 
 func TestNew(t *testing.T) {
-	_, err := New("/bad_file_path.json")
+	_, err := New("/bad_file_path.json", nil)
 	if err == nil {
 		t.Fatal("unexpected behavior")
 	}
-	c, err := New(testConfig)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("failed read config: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestConfig(t *testing.T) {
-	c, err := New(testConfig)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("failed read config: %v", err)
 	}
